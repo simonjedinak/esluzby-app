@@ -168,7 +168,7 @@ export function DatePicker({
                         : !inMonth
                           ? "text-gray-300"
                           : isWeekend
-                            ? "text-gray-400 hover:bg-gray-100"
+                            ? "text-neutral-500 hover:bg-gray-100"
                             : "text-gray-700 hover:bg-gray-100"
                   }`}
                 >
@@ -191,18 +191,6 @@ export function DatePicker({
             >
               Dnes
             </button>
-            {value && (
-              <button
-                type="button"
-                onClick={() => {
-                  onChange("");
-                  setOpen(false);
-                }}
-                className="text-xs px-2 py-1.5 rounded-lg bg-gray-50 text-gray-500 font-medium hover:bg-gray-100 transition-colors"
-              >
-                Vymazať
-              </button>
-            )}
           </div>
         </div>
       )}
