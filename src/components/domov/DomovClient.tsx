@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format, addDays, subDays } from "date-fns";
 import { sk } from "date-fns/locale";
@@ -33,6 +39,7 @@ import {
   SlidersHorizontal,
   Send,
   RotateCcw,
+  ArrowUpDown,
 } from "lucide-react";
 import { DatePicker } from "@/components/ui/DatePicker";
 
@@ -61,6 +68,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   const [dennePozicie, setDennePozicie] = useState<DennyPozicia[]>([]);
   const [komentare, setKomentare] = useState<TemaKomentar[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [schvalovaniModal, setSchvalovaniModal] = useState<{
     tema: Tema;
     action: "schvalene" | "neschvalene";
@@ -86,42 +94,63 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   const [filterStav, setFilterStav] = useState<string>("all");
   const [filterTemaStav, setFilterTemaStav] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
+  // Sorting
+  const [sortMode, setSortMode] = useState<"alphabetical" | "region">(
+    "alphabetical",
+  );
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
+  const scrollRestoreRef = useRef<number | null>(null);
 
   const isVeduci =
     currentProfile.rola === "veduci" || currentProfile.rola === "admin";
   const isVeduciDna = veduciDna.some((v) => v.veduci_id === currentProfile.id);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  // Restore scroll position synchronously after DOM update (before paint)
+  useLayoutEffect(() => {
+    if (scrollRestoreRef.current !== null) {
+      window.scrollTo(0, scrollRestoreRef.current);
+      scrollRestoreRef.current = null;
+    }
+  });
 
-    const [temyRes, veduciRes, stavyRes, pozicieRes, komentareRes] =
-      await Promise.all([
-        supabase
-          .from("temy")
-          .select("*")
-          .eq("datum", datum)
-          .order("created_at"),
-        supabase.from("veduci_dna").select("*").eq("datum", datum),
-        supabase.from("denny_stav").select("*").eq("datum", datum),
-        supabase.from("denny_pozicie").select("*").eq("datum", datum),
-        supabase.from("tema_komentare").select("*").order("created_at"),
-      ]);
+  const fetchData = useCallback(
+    async (silent = false) => {
+      if (silent) {
+        scrollRestoreRef.current = window.scrollY;
+      } else {
+        setLoading(true);
+      }
 
-    const temyData = (temyRes.data || []) as unknown as Tema[];
-    const temaIds = temyData.map((t) => t.id);
-    const filteredKomentare = (
-      (komentareRes.data || []) as unknown as TemaKomentar[]
-    ).filter((k) => temaIds.includes(k.tema_id));
+      const [temyRes, veduciRes, stavyRes, pozicieRes, komentareRes] =
+        await Promise.all([
+          supabase
+            .from("temy")
+            .select("*")
+            .eq("datum", datum)
+            .order("created_at"),
+          supabase.from("veduci_dna").select("*").eq("datum", datum),
+          supabase.from("denny_stav").select("*").eq("datum", datum),
+          supabase.from("denny_pozicie").select("*").eq("datum", datum),
+          supabase.from("tema_komentare").select("*").order("created_at"),
+        ]);
 
-    setTemy(temyData);
-    setVeduciDna((veduciRes.data || []) as unknown as VeduciDna[]);
-    setDenneStavy((stavyRes.data || []) as unknown as DennyStav[]);
-    setDennePozicie((pozicieRes.data || []) as unknown as DennyPozicia[]);
-    setKomentare(filteredKomentare);
-    setLoading(false);
-  }, [datum, supabase]);
+      const temyData = (temyRes.data || []) as unknown as Tema[];
+      const temaIds = temyData.map((t) => t.id);
+      const filteredKomentare = (
+        (komentareRes.data || []) as unknown as TemaKomentar[]
+      ).filter((k) => temaIds.includes(k.tema_id));
+
+      setTemy(temyData);
+      setVeduciDna((veduciRes.data || []) as unknown as VeduciDna[]);
+      setDenneStavy((stavyRes.data || []) as unknown as DennyStav[]);
+      setDennePozicie((pozicieRes.data || []) as unknown as DennyPozicia[]);
+      setKomentare(filteredKomentare);
+      setLoading(false);
+      setInitialLoad(false);
+    },
+    [datum, supabase],
+  );
 
   useEffect(() => {
     fetchData();
@@ -148,8 +177,6 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   );
 
   const sortedReporters = [...reporters].sort((a, b) => {
-    if (a.id === currentProfile.id) return -1;
-    if (b.id === currentProfile.id) return 1;
     const aActive = activeReporterIds.has(a.id);
     const bActive = activeReporterIds.has(b.id);
     if (aActive && !bActive) return -1;
@@ -181,6 +208,50 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     ),
   ].sort();
 
+  // Apply sorting — current user always on top
+  const sortedFilteredReporters = [...filteredReporters].sort((a, b) => {
+    if (a.id === currentProfile.id) return -1;
+    if (b.id === currentProfile.id) return 1;
+    if (sortMode === "region") {
+      const currentRegion = currentProfile.region || "";
+      const regionA = a.region || "";
+      const regionB = b.region || "";
+      // Current user's region always first
+      const aIsCurrent = regionA === currentRegion;
+      const bIsCurrent = regionB === currentRegion;
+      if (aIsCurrent && !bIsCurrent) return -1;
+      if (!aIsCurrent && bIsCurrent) return 1;
+      const regionCmp = regionA.localeCompare(regionB);
+      if (regionCmp !== 0) return regionCmp;
+    }
+    return a.priezvisko.localeCompare(b.priezvisko);
+  });
+
+  // Group reporters by region when sorting by region
+  const reporterGroups: {
+    region: string | null;
+    reporters: typeof sortedFilteredReporters;
+  }[] = [];
+  if (sortMode === "region") {
+    const groupMap = new Map<string, typeof sortedFilteredReporters>();
+    for (const r of sortedFilteredReporters) {
+      const key = r.region || "Bez regiónu";
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(r);
+    }
+    // Current user's region first
+    const currentRegionKey = currentProfile.region || "Bez regiónu";
+    if (groupMap.has(currentRegionKey)) {
+      reporterGroups.push({ region: currentRegionKey, reporters: groupMap.get(currentRegionKey)! });
+    }
+    for (const [region, reporters] of groupMap) {
+      if (region === currentRegionKey) continue;
+      reporterGroups.push({ region, reporters });
+    }
+  } else {
+    reporterGroups.push({ region: null, reporters: sortedFilteredReporters });
+  }
+
   const handleSchvalenie = async () => {
     if (!schvalovaniModal) return;
     setStavLoading(true);
@@ -205,7 +276,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     setSchvalovaniModal(null);
     setPoznamka("");
     setStavLoading(false);
-    fetchData();
+    fetchData(true);
   };
 
   const handleEditTema = async () => {
@@ -232,13 +303,13 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
 
     setEditModal(null);
     setStavLoading(false);
-    fetchData();
+    fetchData(true);
   };
 
   const handleDeleteTema = async (temaId: string) => {
     if (!confirm("Naozaj chcete zmazať túto tému?")) return;
     await supabase.from("temy").delete().eq("id", temaId);
-    fetchData();
+    fetchData(true);
   };
 
   const openEditModal = (tema: Tema) => {
@@ -257,7 +328,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
       text: text.trim(),
     } as any);
     setNovyKomentar(null);
-    fetchData();
+    fetchData(true);
   };
 
   const handleStavChange = async () => {
@@ -283,7 +354,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     setStavChangeModal(null);
     setStavChangePoznamka("");
     setStavLoading(false);
-    fetchData();
+    fetchData(true);
   };
 
   const getKomentareForTema = (temaId: string) => {
@@ -307,7 +378,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
       } as any);
     }
 
-    fetchData();
+    fetchData(true);
   };
 
   const handleSetPozicia = async (
@@ -325,7 +396,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
         pozicia,
       } as any);
     }
-    fetchData();
+    fetchData(true);
   };
 
   const stavConfig: Record<
@@ -584,23 +655,40 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-gray-900">Reportéri a témy</h3>
             <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-              {filteredReporters.length}
+              {sortedFilteredReporters.length}
             </span>
           </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-              showFilters ||
-              filterRegion !== "all" ||
-              filterStav !== "all" ||
-              filterTemaStav !== "all"
-                ? "bg-blue-100 text-blue-700"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            Filter
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                setSortMode(
+                  sortMode === "alphabetical" ? "region" : "alphabetical",
+                )
+              }
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                sortMode === "region"
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              {sortMode === "region" ? "Podľa regiónu" : "Abecedne"}
+            </button>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                showFilters ||
+                filterRegion !== "all" ||
+                filterStav !== "all" ||
+                filterTemaStav !== "all"
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Filter
+            </button>
+          </div>
         </div>
 
         {/* Filter Panel */}
@@ -677,360 +765,515 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
           </div>
         )}
 
-        {loading ? (
+        {initialLoad ? (
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredReporters.map((reporter) => {
-              const reporterTemy = getReporterTemy(reporter.id);
-              const stav = getReporterStav(reporter.id);
-              const stavInfo = reporterStavConfig[stav];
-              const isCurrentUser = reporter.id === currentProfile.id;
-
-              return (
-                <div
-                  key={reporter.id}
-                  className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${
-                    isCurrentUser
-                      ? "border-blue-200 ring-1 ring-blue-100"
-                      : "border-gray-100"
-                  }`}
-                >
-                  {/* Reporter Header */}
-                  <div className="flex items-center justify-between p-4 border-b border-gray-50">
-                    <Link
-                      href={`/profil?user=${reporter.id}`}
-                      className="group flex items-center gap-3 no-underline rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors cursor-pointer"
-                    >
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${
-                          isCurrentUser
-                            ? "bg-blue-100 text-blue-700"
-                            : stav === "nepracujuci"
-                              ? "bg-red-100 text-red-700"
-                              : stav === "volno"
-                                ? "bg-gray-100 text-gray-500"
-                                : "bg-green-100 text-green-700"
-                        }`}
-                      >
-                        {reporter.meno[0]}
-                        {reporter.priezvisko[0]}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
-                            {reporter.priezvisko} {reporter.meno}
-                          </span>
-                          {isCurrentUser && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">
-                              Vy
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <div
-                            className={`w-2 h-2 rounded-full ${stavInfo.dot}`}
-                          />
-                          <span
-                            className={`text-xs font-medium ${stavInfo.color}`}
-                          >
-                            {stavInfo.label}
-                          </span>
-                          {reporter.telefon && (
-                            <span className="text-xs text-gray-400 ml-2">
-                              {reporter.telefon}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-
-                    {isVeduci && (
-                      <div className="flex items-center gap-1">
-                        {(
-                          [
-                            "pracujuci",
-                            "nepracujuci",
-                            "volno",
-                          ] as ReporterStav[]
-                        ).map((s) => {
-                          const cfg = reporterStavConfig[s];
-                          return (
-                            <button
-                              key={s}
-                              onClick={() => handleReporterStav(reporter.id, s)}
-                              className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
-                                stav === s
-                                  ? `${cfg.dot} border-transparent scale-110`
-                                  : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
-                              }`}
-                              title={cfg.label}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
+          <div
+            className={`space-y-3 transition-opacity duration-150 ${loading ? "opacity-50 pointer-events-none" : ""}`}
+          >
+            {reporterGroups.map((group) => (
+              <div key={group.region || "all"} className="space-y-3">
+                {sortMode === "region" && group.region && (
+                  <div className="flex items-center gap-3 pt-2">
+                    <div className="h-px flex-1 bg-gray-200" />
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2">
+                      {group.region}
+                    </span>
+                    <div className="h-px flex-1 bg-gray-200" />
                   </div>
+                )}
+                {group.reporters.map((reporter) => {
+                  const reporterTemy = getReporterTemy(reporter.id);
+                  const stav = getReporterStav(reporter.id);
+                  const stavInfo = reporterStavConfig[stav];
+                  const isCurrentUser = reporter.id === currentProfile.id;
 
-                  {/* Themes */}
-                  <div className={reporterTemy.length > 0 ? "p-4" : ""}>
-                    {reporterTemy.length > 0 && (
-                      <div className="space-y-2">
-                        {reporterTemy.map((tema) => {
-                          const stavI = stavConfig[tema.stav];
-                          const StavIcon = stavI.icon;
-                          const canEdit =
-                            tema.reporter_id === currentProfile.id ||
-                            currentProfile.rola === "admin";
-                          const canChangeStav =
-                            isVeduciDna || currentProfile.rola === "admin";
-                          const temaKomentare = getKomentareForTema(tema.id);
-                          return (
+                  return (
+                    <div
+                      key={reporter.id}
+                      className={`bg-white rounded-2xl shadow-sm border overflow-hidden relative transition-all ${
+                        isCurrentUser
+                          ? "border-blue-200 ring-1 ring-blue-100"
+                          : "border-gray-100"
+                      }`}
+                    >
+                      {reporterTemy.length === 0 ? (
+                        /* Compact: no topics - single line */
+                        <div className="flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3">
+                          <Link
+                            href={`/profil?user=${reporter.id}`}
+                            className="group flex items-center gap-2.5 no-underline hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors cursor-pointer"
+                          >
                             <div
-                              key={tema.id}
-                              className={`p-3 rounded-xl border ${stavI.color}`}
+                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
+                                isCurrentUser
+                                  ? "bg-blue-100 text-blue-700"
+                                  : stav === "nepracujuci"
+                                    ? "bg-red-100 text-red-700"
+                                    : stav === "volno"
+                                      ? "bg-gray-100 text-gray-500"
+                                      : "bg-green-100 text-green-700"
+                              }`}
                             >
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <StavIcon className="w-4 h-4 shrink-0" />
-                                    <span className="font-medium text-sm">
-                                      {tema.nazov}
+                              {reporter.meno[0]}
+                              {reporter.priezvisko[0]}
+                            </div>
+                            <span className="font-medium text-sm text-gray-900 group-hover:text-blue-600">
+                              {reporter.priezvisko} {reporter.meno}
+                            </span>
+                            {isCurrentUser && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">
+                                Vy
+                              </span>
+                            )}
+                            <div
+                              className={`w-1.5 h-1.5 rounded-full ${stavInfo.dot}`}
+                            />
+                            <span
+                              className={`text-xs font-medium ${stavInfo.color}`}
+                            >
+                              {stavInfo.label}
+                            </span>
+                            {reporter.telefon && (
+                              <span className="text-xs text-gray-400 ml-1">
+                                {reporter.telefon}
+                              </span>
+                            )}
+                          </Link>
+                          {isVeduci && (
+                            <div className="flex items-center gap-1">
+                              {(
+                                [
+                                  "pracujuci",
+                                  "nepracujuci",
+                                  "volno",
+                                ] as ReporterStav[]
+                              ).map((s) => {
+                                const cfg = reporterStavConfig[s];
+                                return (
+                                  <button
+                                    key={s}
+                                    onClick={() =>
+                                      handleReporterStav(reporter.id, s)
+                                    }
+                                    className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
+                                      stav === s
+                                        ? `${cfg.dot} border-transparent scale-110`
+                                        : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
+                                    }`}
+                                    title={cfg.label}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div
+                          className={
+                            reporterTemy.length === 1
+                              ? `flex flex-col md:flex-row ${isVeduci ? "pr-4" : "pr-0.5"}`
+                              : ""
+                          }
+                        >
+                          {/* Reporter Header */}
+                          <div
+                            className={`flex items-center justify-between p-3 sm:p-4 ${
+                              reporterTemy.length === 1
+                                ? "md:border-r md:border-b-0 border-b border-gray-50 shrink-0"
+                                : "border-b border-gray-50"
+                            }`}
+                          >
+                            <Link
+                              href={`/profil?user=${reporter.id}`}
+                              className="group flex items-center gap-3 no-underline rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors cursor-pointer"
+                            >
+                              <div
+                                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${
+                                  isCurrentUser
+                                    ? "bg-blue-100 text-blue-700"
+                                    : stav === "nepracujuci"
+                                      ? "bg-red-100 text-red-700"
+                                      : stav === "volno"
+                                        ? "bg-gray-100 text-gray-500"
+                                        : "bg-green-100 text-green-700"
+                                }`}
+                              >
+                                {reporter.meno[0]}
+                                {reporter.priezvisko[0]}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-[17px] text-gray-900 transition-colors group-hover:text-blue-600">
+                                    {reporter.priezvisko} {reporter.meno}
+                                  </span>
+                                  {isCurrentUser && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">
+                                      Vy
                                     </span>
-                                    {tema.typ && tema.typ !== "reportaz" && (
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/50 font-medium">
-                                        {temaTypLabels[tema.typ]}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {tema.popis && (
-                                    <p className="text-xs mt-1 ml-6 opacity-80">
-                                      {tema.popis}
-                                    </p>
                                   )}
-                                  {tema.miesto && (
-                                    <div className="flex items-center gap-1 mt-1 ml-6">
-                                      <MapPin className="w-3 h-3 opacity-60" />
-                                      <span className="text-xs opacity-80">
-                                        {tema.miesto}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {/* Legacy single comment */}
-                                  {tema.poznamka_veduceho && (
-                                    <div className="flex items-start gap-1.5 mt-2 ml-6">
-                                      <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 opacity-60" />
-                                      <p className="text-xs italic opacity-80">
-                                        {tema.poznamka_veduceho}
-                                      </p>
-                                    </div>
-                                  )}
-                                  {/* Multiple comments */}
-                                  {temaKomentare.length > 0 && (
-                                    <div className="mt-2 ml-6 space-y-1.5">
-                                      {temaKomentare.map((kom) => {
-                                        const autor = getProfile(kom.autor_id);
-                                        return (
-                                          <div
-                                            key={kom.id}
-                                            className="flex items-start gap-1.5"
-                                          >
-                                            <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 opacity-60" />
-                                            <div className="text-xs">
-                                              <span className="font-medium opacity-90">
-                                                {autor
-                                                  ? `${autor.priezvisko} ${autor.meno}`
-                                                  : "Neznámy"}
-                                                :
-                                              </span>{" "}
-                                              <span className="italic opacity-80">
-                                                {kom.text}
-                                              </span>
-                                              <span className="text-[10px] opacity-50 ml-1">
-                                                {format(
-                                                  new Date(kom.created_at),
-                                                  "d.M. HH:mm",
-                                                )}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                  {/* Inline comment input */}
-                                  {canChangeStav &&
-                                    novyKomentar?.temaId === tema.id && (
-                                      <div className="flex items-center gap-1.5 mt-2 ml-6">
-                                        <input
-                                          type="text"
-                                          value={novyKomentar.text}
-                                          onChange={(e) =>
-                                            setNovyKomentar({
-                                              temaId: tema.id,
-                                              text: e.target.value,
-                                            })
-                                          }
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                              handleAddKomentar(
-                                                tema.id,
-                                                novyKomentar.text,
-                                              );
-                                            }
-                                            if (e.key === "Escape") {
-                                              setNovyKomentar(null);
-                                            }
-                                          }}
-                                          placeholder="Napíšte komentár..."
-                                          className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded-lg outline-none focus:ring-1 focus:ring-blue-300 text-gray-900 placeholder-gray-400 bg-white/80"
-                                          autoFocus
-                                        />
-                                        <button
-                                          onClick={() =>
-                                            handleAddKomentar(
-                                              tema.id,
-                                              novyKomentar.text,
-                                            )
-                                          }
-                                          className="w-6 h-6 flex items-center justify-center rounded-md bg-blue-500 hover:bg-blue-600 text-white transition-colors"
-                                          title="Odoslať"
-                                        >
-                                          <Send className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                          onClick={() => setNovyKomentar(null)}
-                                          className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/50 transition-colors"
-                                          title="Zrušiť"
-                                        >
-                                          <X className="w-3 h-3" />
-                                        </button>
-                                      </div>
-                                    )}
                                 </div>
-
-                                <div className="flex items-center gap-1 ml-2 shrink-0">
-                                  {canEdit && (
-                                    <button
-                                      onClick={() => openEditModal(tema)}
-                                      className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
-                                      title="Upraviť"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                  {canEdit && (
-                                    <button
-                                      onClick={() => handleDeleteTema(tema.id)}
-                                      className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
-                                      title="Zmazať"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                  {/* Add comment button */}
-                                  {canChangeStav &&
-                                    novyKomentar?.temaId !== tema.id && (
-                                      <button
-                                        onClick={() =>
-                                          setNovyKomentar({
-                                            temaId: tema.id,
-                                            text: "",
-                                          })
-                                        }
-                                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
-                                        title="Pridať komentár"
-                                      >
-                                        <MessageSquare className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                  {/* Status change buttons for admin/veduci_dna */}
-                                  {canChangeStav && tema.stav === "caka" && (
-                                    <>
-                                      <button
-                                        onClick={() =>
-                                          setSchvalovaniModal({
-                                            tema,
-                                            action: "schvalene",
-                                          })
-                                        }
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-200 hover:bg-green-300 text-green-800 transition-colors"
-                                        title="Schváliť"
-                                      >
-                                        <CheckCircle className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          setSchvalovaniModal({
-                                            tema,
-                                            action: "neschvalene",
-                                          })
-                                        }
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-200 hover:bg-red-300 text-red-800 transition-colors"
-                                        title="Neschváliť"
-                                      >
-                                        <XCircle className="w-4 h-4" />
-                                      </button>
-                                    </>
-                                  )}
-                                  {/* Status change for already approved/rejected */}
-                                  {canChangeStav && tema.stav !== "caka" && (
-                                    <button
-                                      onClick={() =>
-                                        setStavChangeModal({
-                                          tema,
-                                          newStav:
-                                            tema.stav === "schvalene"
-                                              ? "neschvalene"
-                                              : "schvalene",
-                                        })
-                                      }
-                                      className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-                                        tema.stav === "schvalene"
-                                          ? "bg-red-200 hover:bg-red-300 text-red-800"
-                                          : "bg-green-200 hover:bg-green-300 text-green-800"
-                                      }`}
-                                      title={
-                                        tema.stav === "schvalene"
-                                          ? "Zmeniť na neschválené"
-                                          : "Zmeniť na schválené"
-                                      }
-                                    >
-                                      {tema.stav === "schvalene" ? (
-                                        <XCircle className="w-4 h-4" />
-                                      ) : (
-                                        <CheckCircle className="w-4 h-4" />
-                                      )}
-                                    </button>
-                                  )}
-                                  {/* Reset to caka */}
-                                  {canChangeStav && tema.stav !== "caka" && (
-                                    <button
-                                      onClick={() =>
-                                        setStavChangeModal({
-                                          tema,
-                                          newStav: "caka",
-                                        })
-                                      }
-                                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-yellow-200 hover:bg-yellow-300 text-yellow-800 transition-colors"
-                                      title="Vrátiť na čakajúcu"
-                                    >
-                                      <RotateCcw className="w-4 h-4" />
-                                    </button>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <div
+                                    className={`w-2 h-2 rounded-full ${stavInfo.dot}`}
+                                  />
+                                  <span
+                                    className={`text-xs font-medium ${stavInfo.color}`}
+                                  >
+                                    {stavInfo.label}
+                                  </span>
+                                  {reporter.telefon && (
+                                    <span className="text-xs text-gray-400 ml-2">
+                                      {reporter.telefon}
+                                    </span>
                                   )}
                                 </div>
                               </div>
+                            </Link>
+
+                            {isVeduci && reporterTemy.length !== 1 && (
+                              <div className="flex items-center gap-1">
+                                {(
+                                  [
+                                    "pracujuci",
+                                    "nepracujuci",
+                                    "volno",
+                                  ] as ReporterStav[]
+                                ).map((s) => {
+                                  const cfg = reporterStavConfig[s];
+                                  return (
+                                    <button
+                                      key={s}
+                                      onClick={() =>
+                                        handleReporterStav(reporter.id, s)
+                                      }
+                                      className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
+                                        stav === s
+                                          ? `${cfg.dot} border-transparent scale-110`
+                                          : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
+                                      }`}
+                                      title={cfg.label}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Themes */}
+                          <div
+                            className={
+                              reporterTemy.length === 1
+                                ? "flex-1 p-3 sm:p-4"
+                                : "p-4"
+                            }
+                          >
+                            <div
+                              className={
+                                reporterTemy.length > 1 ? "space-y-2" : ""
+                              }
+                            >
+                              {reporterTemy.map((tema) => {
+                                const stavI = stavConfig[tema.stav];
+                                const StavIcon = stavI.icon;
+                                const canEdit =
+                                  tema.reporter_id === currentProfile.id ||
+                                  currentProfile.rola === "admin";
+                                const canChangeStav =
+                                  isVeduciDna ||
+                                  currentProfile.rola === "admin";
+                                const temaKomentare = getKomentareForTema(
+                                  tema.id,
+                                );
+                                return (
+                                  <div
+                                    key={tema.id}
+                                    className={`p-3 rounded-xl border ${stavI.color}`}
+                                  >
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <StavIcon className="w-4 h-4 shrink-0" />
+                                          <span className="font-medium text-sm">
+                                            {tema.nazov}
+                                          </span>
+                                          {tema.typ &&
+                                            tema.typ !== "reportaz" && (
+                                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/50 font-medium">
+                                                {temaTypLabels[tema.typ]}
+                                              </span>
+                                            )}
+                                        </div>
+                                        {tema.popis && (
+                                          <p className="text-xs mt-1 ml-6 opacity-80">
+                                            {tema.popis}
+                                          </p>
+                                        )}
+                                        {tema.miesto && (
+                                          <div className="flex items-center gap-1 mt-1 ml-6">
+                                            <MapPin className="w-3 h-3 opacity-60" />
+                                            <span className="text-xs opacity-80">
+                                              {tema.miesto}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {/* Legacy single comment */}
+                                        {tema.poznamka_veduceho && (
+                                          <div className="flex items-start gap-1.5 mt-2 ml-6">
+                                            <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 opacity-60" />
+                                            <p className="text-xs italic opacity-80">
+                                              {tema.poznamka_veduceho}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {/* Multiple comments */}
+                                        {temaKomentare.length > 0 && (
+                                          <div className="mt-2 ml-6 space-y-1.5">
+                                            {temaKomentare.map((kom) => {
+                                              const autor = getProfile(
+                                                kom.autor_id,
+                                              );
+                                              return (
+                                                <div
+                                                  key={kom.id}
+                                                  className="flex items-start gap-1.5"
+                                                >
+                                                  <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 opacity-60" />
+                                                  <div className="text-xs">
+                                                    <span className="font-medium opacity-90">
+                                                      {autor
+                                                        ? `${autor.priezvisko} ${autor.meno}`
+                                                        : "Neznámy"}
+                                                      :
+                                                    </span>{" "}
+                                                    <span className="italic opacity-80">
+                                                      {kom.text}
+                                                    </span>
+                                                    <span className="text-[10px] opacity-50 ml-1">
+                                                      {format(
+                                                        new Date(
+                                                          kom.created_at,
+                                                        ),
+                                                        "d.M. HH:mm",
+                                                      )}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                        {/* Inline comment input */}
+                                        {canChangeStav &&
+                                          novyKomentar?.temaId === tema.id && (
+                                            <div className="flex items-center gap-1.5 mt-2 ml-6">
+                                              <input
+                                                type="text"
+                                                value={novyKomentar.text}
+                                                onChange={(e) =>
+                                                  setNovyKomentar({
+                                                    temaId: tema.id,
+                                                    text: e.target.value,
+                                                  })
+                                                }
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter") {
+                                                    handleAddKomentar(
+                                                      tema.id,
+                                                      novyKomentar.text,
+                                                    );
+                                                  }
+                                                  if (e.key === "Escape") {
+                                                    setNovyKomentar(null);
+                                                  }
+                                                }}
+                                                placeholder="Napíšte komentár..."
+                                                className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded-lg outline-none focus:ring-1 focus:ring-blue-300 text-gray-900 placeholder-gray-400 bg-white/80"
+                                                autoFocus
+                                              />
+                                              <button
+                                                onClick={() =>
+                                                  handleAddKomentar(
+                                                    tema.id,
+                                                    novyKomentar.text,
+                                                  )
+                                                }
+                                                className="w-6 h-6 flex items-center justify-center rounded-md bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                                                title="Odoslať"
+                                              >
+                                                <Send className="w-3 h-3" />
+                                              </button>
+                                              <button
+                                                onClick={() =>
+                                                  setNovyKomentar(null)
+                                                }
+                                                className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/50 transition-colors"
+                                                title="Zrušiť"
+                                              >
+                                                <X className="w-3 h-3" />
+                                              </button>
+                                            </div>
+                                          )}
+                                      </div>
+
+                                      <div className="flex items-center gap-1 ml-2 shrink-0">
+                                        {canEdit && (
+                                          <button
+                                            onClick={() => openEditModal(tema)}
+                                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
+                                            title="Upraviť"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                        {canEdit && (
+                                          <button
+                                            onClick={() =>
+                                              handleDeleteTema(tema.id)
+                                            }
+                                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
+                                            title="Zmazať"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                        {/* Add comment button */}
+                                        {canChangeStav &&
+                                          novyKomentar?.temaId !== tema.id && (
+                                            <button
+                                              onClick={() =>
+                                                setNovyKomentar({
+                                                  temaId: tema.id,
+                                                  text: "",
+                                                })
+                                              }
+                                              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
+                                              title="Pridať komentár"
+                                            >
+                                              <MessageSquare className="w-3.5 h-3.5" />
+                                            </button>
+                                          )}
+                                        {/* Status change buttons for admin/veduci_dna */}
+                                        {canChangeStav &&
+                                          tema.stav === "caka" && (
+                                            <>
+                                              <button
+                                                onClick={() =>
+                                                  setSchvalovaniModal({
+                                                    tema,
+                                                    action: "schvalene",
+                                                  })
+                                                }
+                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-200 hover:bg-green-300 text-green-800 transition-colors"
+                                                title="Schváliť"
+                                              >
+                                                <CheckCircle className="w-4 h-4" />
+                                              </button>
+                                              <button
+                                                onClick={() =>
+                                                  setSchvalovaniModal({
+                                                    tema,
+                                                    action: "neschvalene",
+                                                  })
+                                                }
+                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-200 hover:bg-red-300 text-red-800 transition-colors"
+                                                title="Neschváliť"
+                                              >
+                                                <XCircle className="w-4 h-4" />
+                                              </button>
+                                            </>
+                                          )}
+                                        {/* Status change for already approved/rejected */}
+                                        {canChangeStav &&
+                                          tema.stav !== "caka" && (
+                                            <button
+                                              onClick={() =>
+                                                setStavChangeModal({
+                                                  tema,
+                                                  newStav:
+                                                    tema.stav === "schvalene"
+                                                      ? "neschvalene"
+                                                      : "schvalene",
+                                                })
+                                              }
+                                              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                                                tema.stav === "schvalene"
+                                                  ? "bg-red-200 hover:bg-red-300 text-red-800"
+                                                  : "bg-green-200 hover:bg-green-300 text-green-800"
+                                              }`}
+                                              title={
+                                                tema.stav === "schvalene"
+                                                  ? "Zmeniť na neschválené"
+                                                  : "Zmeniť na schválené"
+                                              }
+                                            >
+                                              {tema.stav === "schvalene" ? (
+                                                <XCircle className="w-4 h-4" />
+                                              ) : (
+                                                <CheckCircle className="w-4 h-4" />
+                                              )}
+                                            </button>
+                                          )}
+                                        {/* Reset to caka */}
+                                        {canChangeStav &&
+                                          tema.stav !== "caka" && (
+                                            <button
+                                              onClick={() =>
+                                                setStavChangeModal({
+                                                  tema,
+                                                  newStav: "caka",
+                                                })
+                                              }
+                                              className="w-8 h-8 flex items-center justify-center rounded-lg bg-yellow-200 hover:bg-yellow-300 text-yellow-800 transition-colors"
+                                              title="Vrátiť na čakajúcu"
+                                            >
+                                              <RotateCcw className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                          </div>
+                          {/* Ensure reporter-level status buttons sit on the right for single-theme rows */}
+                          {isVeduci && reporterTemy.length === 1 && (
+                            <div className="absolute top-3 right-3 z-10 flex items-center gap-1 md:static md:ml-2 ml-0 shrink-0">
+                              {(
+                                [
+                                  "pracujuci",
+                                  "nepracujuci",
+                                  "volno",
+                                ] as ReporterStav[]
+                              ).map((s) => {
+                                const cfg = reporterStavConfig[s];
+                                return (
+                                  <button
+                                    key={s}
+                                    onClick={() =>
+                                      handleReporterStav(reporter.id, s)
+                                    }
+                                    className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
+                                      stav === s
+                                        ? `${cfg.dot} border-transparent scale-110`
+                                        : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
+                                    }`}
+                                    title={cfg.label}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         )}
       </div>
