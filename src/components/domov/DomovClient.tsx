@@ -15,6 +15,7 @@ import type {
   ReporterStav,
   PoziciaTyp,
   TemaTyp,
+  TemaKomentar,
 } from "@/lib/types/database";
 import { poziciaLabels, temaTypLabels } from "@/lib/types/database";
 import {
@@ -33,6 +34,8 @@ import {
   Trash2,
   X,
   SlidersHorizontal,
+  Send,
+  RotateCcw,
 } from "lucide-react";
 import { DatePicker } from "@/components/ui/DatePicker";
 
@@ -59,6 +62,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   const [veduciDna, setVeduciDna] = useState<VeduciDna[]>([]);
   const [denneStavy, setDenneStavy] = useState<DennyStav[]>([]);
   const [dennePozicie, setDennePozicie] = useState<DennyPozicia[]>([]);
+  const [komentare, setKomentare] = useState<TemaKomentar[]>([]);
   const [loading, setLoading] = useState(true);
   const [schvalovaniModal, setSchvalovaniModal] = useState<{
     tema: Tema;
@@ -71,6 +75,9 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   const [editTyp, setEditTyp] = useState<TemaTyp>("reportaz");
   const [poznamka, setPoznamka] = useState("");
   const [stavLoading, setStavLoading] = useState(false);
+  const [novyKomentar, setNovyKomentar] = useState<{ temaId: string; text: string } | null>(null);
+  const [stavChangeModal, setStavChangeModal] = useState<{ tema: Tema; newStav: TemaStav } | null>(null);
+  const [stavChangePoznamka, setStavChangePoznamka] = useState("");
   // Filters
   const [filterRegion, setFilterRegion] = useState<string>("all");
   const [filterStav, setFilterStav] = useState<string>("all");
@@ -86,17 +93,25 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    const [temyRes, veduciRes, stavyRes, pozicieRes] = await Promise.all([
+    const [temyRes, veduciRes, stavyRes, pozicieRes, komentareRes] = await Promise.all([
       supabase.from("temy").select("*").eq("datum", datum).order("created_at"),
       supabase.from("veduci_dna").select("*").eq("datum", datum),
       supabase.from("denny_stav").select("*").eq("datum", datum),
       supabase.from("denny_pozicie").select("*").eq("datum", datum),
+      supabase.from("tema_komentare").select("*").order("created_at"),
     ]);
 
-    setTemy((temyRes.data || []) as unknown as Tema[]);
+    const temyData = (temyRes.data || []) as unknown as Tema[];
+    const temaIds = temyData.map((t) => t.id);
+    const filteredKomentare = ((komentareRes.data || []) as unknown as TemaKomentar[]).filter((k) =>
+      temaIds.includes(k.tema_id)
+    );
+
+    setTemy(temyData);
     setVeduciDna((veduciRes.data || []) as unknown as VeduciDna[]);
     setDenneStavy((stavyRes.data || []) as unknown as DennyStav[]);
     setDennePozicie((pozicieRes.data || []) as unknown as DennyPozicia[]);
+    setKomentare(filteredKomentare);
     setLoading(false);
   }, [datum, supabase]);
 
@@ -167,9 +182,17 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
       .update({
         stav: schvalovaniModal.action,
         schvalil_id: currentProfile.id,
-        poznamka_veduceho: poznamka || null,
       } as any)
       .eq("id", schvalovaniModal.tema.id);
+
+    // Add comment if provided
+    if (poznamka.trim()) {
+      await supabase.from("tema_komentare").insert({
+        tema_id: schvalovaniModal.tema.id,
+        autor_id: currentProfile.id,
+        text: poznamka.trim(),
+      } as any);
+    }
 
     setSchvalovaniModal(null);
     setPoznamka("");
@@ -181,6 +204,9 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     if (!editModal) return;
     setStavLoading(true);
 
+    const isReporterEdit = editModal.reporter_id === currentProfile.id && currentProfile.rola === "reporter";
+    const wasApproved = editModal.stav === "schvalene" || editModal.stav === "neschvalene";
+
     await supabase
       .from("temy")
       .update({
@@ -188,6 +214,8 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
         popis: editPopis || null,
         miesto: editMiesto || null,
         typ: editTyp,
+        // Auto-revert to caka when reporter edits approved/rejected topic
+        ...(isReporterEdit && wasApproved ? { stav: "caka" } : {}),
       } as any)
       .eq("id", editModal.id);
 
@@ -208,6 +236,47 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     setEditMiesto(tema.miesto || "");
     setEditTyp(tema.typ || "reportaz");
     setEditModal(tema);
+  };
+
+  const handleAddKomentar = async (temaId: string, text: string) => {
+    if (!text.trim()) return;
+    await supabase.from("tema_komentare").insert({
+      tema_id: temaId,
+      autor_id: currentProfile.id,
+      text: text.trim(),
+    } as any);
+    setNovyKomentar(null);
+    fetchData();
+  };
+
+  const handleStavChange = async () => {
+    if (!stavChangeModal) return;
+    setStavLoading(true);
+
+    await supabase
+      .from("temy")
+      .update({
+        stav: stavChangeModal.newStav,
+        schvalil_id: currentProfile.id,
+      } as any)
+      .eq("id", stavChangeModal.tema.id);
+
+    if (stavChangePoznamka.trim()) {
+      await supabase.from("tema_komentare").insert({
+        tema_id: stavChangeModal.tema.id,
+        autor_id: currentProfile.id,
+        text: stavChangePoznamka.trim(),
+      } as any);
+    }
+
+    setStavChangeModal(null);
+    setStavChangePoznamka("");
+    setStavLoading(false);
+    fetchData();
+  };
+
+  const getKomentareForTema = (temaId: string) => {
+    return komentare.filter((k) => k.tema_id === temaId);
   };
 
   const handleReporterStav = async (reporterId: string, stav: ReporterStav) => {
@@ -288,9 +357,14 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
 
   const formattedDate = format(
     new Date(datum + "T12:00:00"),
-    "EEEE, d. MMMM yyyy",
+    "EE, d. MMM yyyy",
     { locale: sk },
   );
+
+  const todayIso = format(new Date(), "yyyy-MM-dd");
+  const tomorrowIso = format(addDays(new Date(), 1), "yyyy-MM-dd");
+  const isTodaySelected = datum === todayIso;
+  const isTomorrowSelected = datum === tomorrowIso;
 
   const getPoziciaProfile = (pozicia: PoziciaTyp): Profile | undefined => {
     const assignment = dennePozicie.find((p) => p.pozicia === pozicia);
@@ -298,11 +372,11 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex-row flex gap-4">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col lg:flex-row gap-4">
         {/* Date Selector */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex-1">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-4 flex flex-col justify-between lg:w-72">
+          <div className="flex items-center justify-between mb-3">
             <button
               onClick={() =>
                 setDatum(
@@ -312,23 +386,11 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                   ),
                 )
               }
-              className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors"
+              className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
+              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />
             </button>
-            <div className="flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              <div className="text-center">
-                <h2 className="text-lg font-semibold text-gray-900 capitalize">
-                  {formattedDate}
-                </h2>
-                <DatePicker
-                  value={datum}
-                  onChange={setDatum}
-                  className="mt-1"
-                />
-              </div>
-            </div>
+            <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
             <button
               onClick={() =>
                 setDatum(
@@ -338,51 +400,65 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                   ),
                 )
               }
-              className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors"
+              className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors"
             >
-              <ChevronRight className="w-5 h-5 text-gray-600" />
+              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />
             </button>
           </div>
+
+          <div className="flex-1 flex flex-col items-center justify-center min-h-[120px]">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 capitalize mb-2">
+              {formattedDate}
+            </h2>
+            <DatePicker value={datum} onChange={setDatum} className="mt-2" />
+          </div>
+
           <div className="flex justify-center gap-2 mt-3">
             <button
               onClick={() => setDatum(format(new Date(), "yyyy-MM-dd"))}
-              className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 font-medium transition-colors"
+              className={`text-xs px-3 py-1 rounded-full font-medium transition-colors whitespace-nowrap ${
+                isTodaySelected
+                  ? "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+              }`}
             >
               Dnes
             </button>
             <button
-              onClick={() =>
-                setDatum(format(addDays(new Date(), 1), "yyyy-MM-dd"))
-              }
-              className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-600 hover:bg-gray-100 font-medium transition-colors"
+              onClick={() => setDatum(format(addDays(new Date(), 1), "yyyy-MM-dd"))}
+              className={`text-xs px-3 py-1 rounded-full font-medium transition-colors whitespace-nowrap ${
+                isTomorrowSelected
+                  ? "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+              }`}
             >
               Zajtra
             </button>
           </div>
         </div>
         {/* Leaders Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex-3">
-          <div className="flex">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex-1 py-2 sm:py-3">
+          <div className="flex flex-col md:flex-row h-full">
             {/* First Column */}
-            <div className="flex-1 divide-y divide-gray-50">
+            <div className="flex-1 flex flex-col divide-y divide-gray-50">
               {POZICIA_ORDER.slice(0, 4).map((pozicia) => {
                 const assignedProfile = getPoziciaProfile(pozicia);
                 return (
                   <div
                     key={pozicia}
-                    className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                    className="flex-1 flex flex-col sm:flex-row items-start sm:items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 hover:bg-gray-50 transition-colors gap-1 sm:gap-2"
                   >
-                    <span className="text-sm font-medium text-gray-600 w-40 shrink-0">
+                    <span className="text-xs sm:text-sm font-medium text-gray-600 sm:w-32 lg:w-40 shrink-0">
                       {poziciaLabels[pozicia]}
                     </span>
-                    <div className="flex items-center gap-2 flex-1 justify-end">
+                    <div className="flex items-center gap-2 w-full sm:flex-1 justify-start sm:justify-end">
                       {isVeduci ? (
                         <select
                           value={assignedProfile?.id || ""}
                           onChange={(e) =>
                             handleSetPozicia(pozicia, e.target.value)
                           }
-                          className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200 text-gray-700 max-w-50 w-full"
+                          className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200 text-gray-700 w-full sm:max-w-[200px]"
                         >
                           <option value="">— Neobsadené —</option>
                           {allProfiles
@@ -398,13 +474,13 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                         </select>
                       ) : assignedProfile ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-900">
+                          <span className="text-xs sm:text-sm font-medium text-gray-900 truncate">
                             {assignedProfile.priezvisko} {assignedProfile.meno}
                           </span>
                           {assignedProfile.email && (
                             <a
                               href={`mailto:${assignedProfile.email}`}
-                              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 transition-colors"
+                              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 transition-colors shrink-0"
                               title="Email"
                             >
                               <Mail className="w-3.5 h-3.5" />
@@ -412,7 +488,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                           )}
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400 italic">—</span>
+                        <span className="text-xs sm:text-sm text-gray-400 italic">—</span>
                       )}
                     </div>
                   </div>
@@ -420,27 +496,27 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
               })}
             </div>
             {/* Vertical Divider */}
-            <div className="w-px bg-gray-100" />
+            <div className="w-full md:w-px h-px md:h-full bg-gray-100" />
             {/* Second Column */}
-            <div className="flex-1 divide-y divide-gray-50">
+            <div className="flex-1 flex flex-col divide-y divide-gray-50">
               {POZICIA_ORDER.slice(4).map((pozicia) => {
                 const assignedProfile = getPoziciaProfile(pozicia);
                 return (
                   <div
                     key={pozicia}
-                    className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                    className="flex-1 flex flex-col sm:flex-row items-start sm:items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 hover:bg-gray-50 transition-colors gap-1 sm:gap-2"
                   >
-                    <span className="text-sm font-medium text-gray-600 w-40 shrink-0">
+                    <span className="text-xs sm:text-sm font-medium text-gray-600 sm:w-32 lg:w-40 shrink-0">
                       {poziciaLabels[pozicia]}
                     </span>
-                    <div className="flex items-center gap-2 flex-1 justify-end">
+                    <div className="flex items-center gap-2 w-full sm:flex-1 justify-start sm:justify-end">
                       {isVeduci ? (
                         <select
                           value={assignedProfile?.id || ""}
                           onChange={(e) =>
                             handleSetPozicia(pozicia, e.target.value)
                           }
-                          className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200 text-gray-700 max-w-50 w-full"
+                          className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200 text-gray-700 w-full sm:max-w-[200px]"
                         >
                           <option value="">— Neobsadené —</option>
                           {allProfiles
@@ -456,13 +532,13 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                         </select>
                       ) : assignedProfile ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-900">
+                          <span className="text-xs sm:text-sm font-medium text-gray-900 truncate">
                             {assignedProfile.priezvisko} {assignedProfile.meno}
                           </span>
                           {assignedProfile.email && (
                             <a
                               href={`mailto:${assignedProfile.email}`}
-                              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 transition-colors"
+                              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 transition-colors shrink-0"
                               title="Email"
                             >
                               <Mail className="w-3.5 h-3.5" />
@@ -470,7 +546,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                           )}
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400 italic">—</span>
+                        <span className="text-xs sm:text-sm text-gray-400 italic">—</span>
                       )}
                     </div>
                   </div>
@@ -688,6 +764,9 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                             const canEdit =
                               tema.reporter_id === currentProfile.id ||
                               currentProfile.rola === "admin";
+                            const canChangeStav =
+                              isVeduciDna || currentProfile.rola === "admin";
+                            const temaKomentare = getKomentareForTema(tema.id);
                             return (
                               <div
                                 key={tema.id}
@@ -719,6 +798,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                         </span>
                                       </div>
                                     )}
+                                    {/* Legacy single comment */}
                                     {tema.poznamka_veduceho && (
                                       <div className="flex items-start gap-1.5 mt-2 ml-6">
                                         <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 opacity-60" />
@@ -727,6 +807,90 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                         </p>
                                       </div>
                                     )}
+                                    {/* Multiple comments */}
+                                    {temaKomentare.length > 0 && (
+                                      <div className="mt-2 ml-6 space-y-1.5">
+                                        {temaKomentare.map((kom) => {
+                                          const autor = getProfile(kom.autor_id);
+                                          return (
+                                            <div
+                                              key={kom.id}
+                                              className="flex items-start gap-1.5"
+                                            >
+                                              <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 opacity-60" />
+                                              <div className="text-xs">
+                                                <span className="font-medium opacity-90">
+                                                  {autor
+                                                    ? `${autor.priezvisko} ${autor.meno}`
+                                                    : "Neznámy"}
+                                                  :
+                                                </span>{" "}
+                                                <span className="italic opacity-80">
+                                                  {kom.text}
+                                                </span>
+                                                <span className="text-[10px] opacity-50 ml-1">
+                                                  {format(
+                                                    new Date(kom.created_at),
+                                                    "d.M. HH:mm",
+                                                  )}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                    {/* Inline comment input */}
+                                    {canChangeStav &&
+                                      novyKomentar?.temaId === tema.id && (
+                                        <div className="flex items-center gap-1.5 mt-2 ml-6">
+                                          <input
+                                            type="text"
+                                            value={novyKomentar.text}
+                                            onChange={(e) =>
+                                              setNovyKomentar({
+                                                temaId: tema.id,
+                                                text: e.target.value,
+                                              })
+                                            }
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                handleAddKomentar(
+                                                  tema.id,
+                                                  novyKomentar.text,
+                                                );
+                                              }
+                                              if (e.key === "Escape") {
+                                                setNovyKomentar(null);
+                                              }
+                                            }}
+                                            placeholder="Napíšte komentár..."
+                                            className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded-lg outline-none focus:ring-1 focus:ring-blue-300 text-gray-900 placeholder-gray-400 bg-white/80"
+                                            autoFocus
+                                          />
+                                          <button
+                                            onClick={() =>
+                                              handleAddKomentar(
+                                                tema.id,
+                                                novyKomentar.text,
+                                              )
+                                            }
+                                            className="w-6 h-6 flex items-center justify-center rounded-md bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                                            title="Odoslať"
+                                          >
+                                            <Send className="w-3 h-3" />
+                                          </button>
+                                          <button
+                                            onClick={() =>
+                                              setNovyKomentar(null)
+                                            }
+                                            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/50 transition-colors"
+                                            title="Zrušiť"
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      )}
                                   </div>
 
                                   <div className="flex items-center gap-1 ml-2 shrink-0">
@@ -750,35 +914,94 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </button>
                                     )}
-                                    {(isVeduciDna ||
-                                      currentProfile.rola === "admin") &&
-                                      tema.stav === "caka" && (
-                                        <>
-                                          <button
-                                            onClick={() =>
-                                              setSchvalovaniModal({
-                                                tema,
-                                                action: "schvalene",
-                                              })
-                                            }
-                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-200 hover:bg-green-300 text-green-800 transition-colors"
-                                            title="Schváliť"
-                                          >
-                                            <CheckCircle className="w-4 h-4" />
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              setSchvalovaniModal({
-                                                tema,
-                                                action: "neschvalene",
-                                              })
-                                            }
-                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-200 hover:bg-red-300 text-red-800 transition-colors"
-                                            title="Neschváliť"
-                                          >
+                                    {/* Add comment button */}
+                                    {canChangeStav &&
+                                      novyKomentar?.temaId !== tema.id && (
+                                        <button
+                                          onClick={() =>
+                                            setNovyKomentar({
+                                              temaId: tema.id,
+                                              text: "",
+                                            })
+                                          }
+                                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
+                                          title="Pridať komentár"
+                                        >
+                                          <MessageSquare className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    {/* Status change buttons for admin/veduci_dna */}
+                                    {canChangeStav && tema.stav === "caka" && (
+                                      <>
+                                        <button
+                                          onClick={() =>
+                                            setSchvalovaniModal({
+                                              tema,
+                                              action: "schvalene",
+                                            })
+                                          }
+                                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-200 hover:bg-green-300 text-green-800 transition-colors"
+                                          title="Schváliť"
+                                        >
+                                          <CheckCircle className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            setSchvalovaniModal({
+                                              tema,
+                                              action: "neschvalene",
+                                            })
+                                          }
+                                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-200 hover:bg-red-300 text-red-800 transition-colors"
+                                          title="Neschváliť"
+                                        >
+                                          <XCircle className="w-4 h-4" />
+                                        </button>
+                                      </>
+                                    )}
+                                    {/* Status change for already approved/rejected */}
+                                    {canChangeStav &&
+                                      tema.stav !== "caka" && (
+                                        <button
+                                          onClick={() =>
+                                            setStavChangeModal({
+                                              tema,
+                                              newStav: tema.stav === "schvalene" ? "neschvalene" : "schvalene",
+                                            })
+                                          }
+                                          className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                                            tema.stav === "schvalene"
+                                              ? "bg-red-200 hover:bg-red-300 text-red-800"
+                                              : "bg-green-200 hover:bg-green-300 text-green-800"
+                                          }`}
+                                          title={
+                                            tema.stav === "schvalene"
+                                              ? "Zmeniť na neschválené"
+                                              : "Zmeniť na schválené"
+                                          }
+                                        >
+                                          {tema.stav === "schvalene" ? (
                                             <XCircle className="w-4 h-4" />
-                                          </button>
-                                        </>
+                                          ) : (
+                                            <CheckCircle className="w-4 h-4" />
+                                          )}
+                                        </button>
+                                      )}
+                                    {/* Reset to caka */}
+                                    {canChangeStav &&
+                                      tema.stav !== "caka" && (
+                                        <button
+                                          onClick={() =>
+                                            setStavChangeModal({
+                                              tema,
+                                              newStav: "caka",
+                                            })
+                                          }
+                                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-yellow-200 hover:bg-yellow-300 text-yellow-800 transition-colors"
+                                          title="Vrátiť na čakajúcu"
+                                        >
+                                          <RotateCcw className="w-4 h-4" />
+                                        </button>
                                       )}
                                   </div>
                                 </div>
@@ -787,12 +1010,6 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                           })}
                         </div>
                       )
-                      // : (
-                      //   <div className="flex items-center gap-2 text-gray-400">
-                      //     <Circle className="w-4 h-4" />
-                      //     <span className="text-sm italic">Žiadne témy</span>
-                      //   </div>
-                      // )
                     }
                   </div>
                 </div>
@@ -947,6 +1164,75 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                 className="flex-1 px-4 py-2.5 bg-blue-600 rounded-xl text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 {stavLoading ? "Ukladám..." : "Uložiť"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Change Modal (for already approved/rejected topics) */}
+      {stavChangeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-70 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              Zmeniť stav témy
+            </h3>
+            <p className="text-sm text-gray-500 mb-2">
+              Téma:{" "}
+              <span className="font-medium text-gray-700">
+                {stavChangeModal.tema.nazov}
+              </span>
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Nový stav
+              </label>
+              <select
+                value={stavChangeModal.newStav}
+                onChange={(e) =>
+                  setStavChangeModal({
+                    ...stavChangeModal,
+                    newStav: e.target.value as TemaStav,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm text-gray-900"
+              >
+                <option value="caka">Čaká na schválenie</option>
+                <option value="schvalene">Schválené</option>
+                <option value="neschvalene">Neschválené</option>
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Komentár (voliteľné)
+              </label>
+              <textarea
+                value={stavChangePoznamka}
+                onChange={(e) => setStavChangePoznamka(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm text-gray-900 placeholder-gray-400 resize-none"
+                rows={3}
+                placeholder="Dôvod zmeny stavu..."
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setStavChangeModal(null);
+                  setStavChangePoznamka("");
+                }}
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Zrušiť
+              </button>
+              <button
+                onClick={handleStavChange}
+                disabled={stavLoading}
+                className="flex-1 px-4 py-2.5 bg-blue-600 rounded-xl text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {stavLoading ? "Ukladám..." : "Zmeniť stav"}
               </button>
             </div>
           </div>

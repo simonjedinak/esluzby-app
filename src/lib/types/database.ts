@@ -138,6 +138,16 @@ export interface DennyPozicia {
   profile?: Profile;
 }
 
+export interface TemaKomentar {
+  id: string;
+  tema_id: string;
+  autor_id: string;
+  text: string;
+  created_at: string;
+  // Joined
+  autor?: Profile;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -170,6 +180,11 @@ export interface Database {
         Row: VeduciDna;
         Insert: Omit<VeduciDna, "id" | "veduci">;
         Update: Partial<Omit<VeduciDna, "id" | "veduci">>;
+      };
+      tema_komentare: {
+        Row: TemaKomentar;
+        Insert: Omit<TemaKomentar, "id" | "created_at" | "autor">;
+        Update: Partial<Omit<TemaKomentar, "id" | "created_at" | "autor">>;
       };
     };
     Views: Record<string, never>;
