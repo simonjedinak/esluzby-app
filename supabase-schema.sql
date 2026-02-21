@@ -17,9 +17,11 @@ CREATE TABLE profiles (
   meno TEXT NOT NULL,
   priezvisko TEXT NOT NULL,
   rola user_role NOT NULL DEFAULT 'reporter',
+  roly TEXT[] NOT NULL DEFAULT ARRAY['reporter'],
   telefon TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Roly: admin, veduci_vydania, produkcia, web_editor, tn_live, office_manazerka, reporter
 
 -- =============================================
 -- Témy (služby reportérov)

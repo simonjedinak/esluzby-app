@@ -23,7 +23,15 @@ import type {
   TemaTyp,
   TemaKomentar,
 } from "@/lib/types/database";
-import { poziciaLabels, temaTypLabels } from "@/lib/types/database";
+import {
+  poziciaLabels,
+  temaTypLabels,
+  hasRole,
+  canManage,
+  isOnlyReporter,
+  rolaLabels,
+  rolaColors,
+} from "@/lib/types/database";
 import {
   ChevronLeft,
   ChevronRight,
@@ -40,8 +48,10 @@ import {
   Send,
   RotateCcw,
   ArrowUpDown,
+  PlusCircle,
 } from "lucide-react";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { NovaTemaModal } from "@/components/nova-tema/NovaTemaModal";
 
 interface DomovClientProps {
   currentProfile: Profile;
@@ -98,12 +108,13 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   const [sortMode, setSortMode] = useState<"alphabetical" | "region">(
     "alphabetical",
   );
+  // Nova tema modal
+  const [showNovaTema, setShowNovaTema] = useState(false);
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
   const scrollRestoreRef = useRef<number | null>(null);
 
-  const isVeduci =
-    currentProfile.rola === "veduci" || currentProfile.rola === "admin";
+  const isVeduci = canManage(currentProfile);
   const isVeduciDna = veduciDna.some((v) => v.veduci_id === currentProfile.id);
 
   // Restore scroll position synchronously after DOM update (before paint)
@@ -173,7 +184,10 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   ]);
 
   const reporters = allProfiles.filter(
-    (p) => p.rola === "reporter" || activeReporterIds.has(p.id),
+    (p) =>
+      hasRole(p, "reporter") ||
+      isOnlyReporter(p) ||
+      activeReporterIds.has(p.id),
   );
 
   const sortedReporters = [...reporters].sort((a, b) => {
@@ -242,7 +256,10 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     // Current user's region first
     const currentRegionKey = currentProfile.region || "Bez regiónu";
     if (groupMap.has(currentRegionKey)) {
-      reporterGroups.push({ region: currentRegionKey, reporters: groupMap.get(currentRegionKey)! });
+      reporterGroups.push({
+        region: currentRegionKey,
+        reporters: groupMap.get(currentRegionKey)!,
+      });
     }
     for (const [region, reporters] of groupMap) {
       if (region === currentRegionKey) continue;
@@ -281,11 +298,17 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
 
   const handleEditTema = async () => {
     if (!editModal) return;
+    // Prevent editing topics from the past
+    if (editModal.datum && editModal.datum < todayIso) {
+      alert("Tému z minulosti nemožno upravovať.");
+      setEditModal(null);
+      return;
+    }
     setStavLoading(true);
 
     const isReporterEdit =
       editModal.reporter_id === currentProfile.id &&
-      currentProfile.rola === "reporter";
+      isOnlyReporter(currentProfile);
     const wasApproved =
       editModal.stav === "schvalene" || editModal.stav === "neschvalene";
 
@@ -307,6 +330,11 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   };
 
   const handleDeleteTema = async (temaId: string) => {
+    const tema = temy.find((t) => t.id === temaId);
+    if (tema && tema.datum < todayIso) {
+      alert("Tému z minulosti nemožno zmazať.");
+      return;
+    }
     if (!confirm("Naozaj chcete zmazať túto tému?")) return;
     await supabase.from("temy").delete().eq("id", temaId);
     fetchData(true);
@@ -562,7 +590,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                         >
                           <option value="">— Neobsadené —</option>
                           {allProfiles
-                            .filter((p) => p.rola !== "reporter")
+                            .filter((p) => !isOnlyReporter(p))
                             .sort((a, b) =>
                               a.priezvisko.localeCompare(b.priezvisko),
                             )
@@ -616,7 +644,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                         >
                           <option value="">— Neobsadené —</option>
                           {allProfiles
-                            .filter((p) => p.rola !== "reporter")
+                            .filter((p) => !isOnlyReporter(p))
                             .sort((a, b) =>
                               a.priezvisko.localeCompare(b.priezvisko),
                             )
@@ -842,33 +870,46 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                               </span>
                             )}
                           </Link>
-                          {isVeduci && (
-                            <div className="flex items-center gap-1">
-                              {(
-                                [
-                                  "pracujuci",
-                                  "nepracujuci",
-                                  "volno",
-                                ] as ReporterStav[]
-                              ).map((s) => {
-                                const cfg = reporterStavConfig[s];
-                                return (
-                                  <button
-                                    key={s}
-                                    onClick={() =>
-                                      handleReporterStav(reporter.id, s)
-                                    }
-                                    className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
-                                      stav === s
-                                        ? `${cfg.dot} border-transparent scale-110`
-                                        : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
-                                    }`}
-                                    title={cfg.label}
-                                  />
-                                );
-                              })}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {isCurrentUser &&
+                              hasRole(currentProfile, "reporter") &&
+                              datum >= todayIso && (
+                                <button
+                                  onClick={() => setShowNovaTema(true)}
+                                  className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors shrink-0"
+                                  title="Nová téma"
+                                >
+                                  <PlusCircle className="w-4 h-4 text-white" />
+                                </button>
+                              )}
+                            {isVeduci && (
+                              <div className="flex items-center gap-1">
+                                {(
+                                  [
+                                    "pracujuci",
+                                    "nepracujuci",
+                                    "volno",
+                                  ] as ReporterStav[]
+                                ).map((s) => {
+                                  const cfg = reporterStavConfig[s];
+                                  return (
+                                    <button
+                                      key={s}
+                                      onClick={() =>
+                                        handleReporterStav(reporter.id, s)
+                                      }
+                                      className={`w-7 h-7 rounded-full border-2 transition-all flex items-center justify-center ${
+                                        stav === s
+                                          ? `${cfg.dot} border-transparent scale-110`
+                                          : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
+                                      }`}
+                                      title={cfg.label}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div
@@ -933,33 +974,47 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                               </div>
                             </Link>
 
-                            {isVeduci && reporterTemy.length !== 1 && (
-                              <div className="flex items-center gap-1">
-                                {(
-                                  [
-                                    "pracujuci",
-                                    "nepracujuci",
-                                    "volno",
-                                  ] as ReporterStav[]
-                                ).map((s) => {
-                                  const cfg = reporterStavConfig[s];
-                                  return (
-                                    <button
-                                      key={s}
-                                      onClick={() =>
-                                        handleReporterStav(reporter.id, s)
-                                      }
-                                      className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
-                                        stav === s
-                                          ? `${cfg.dot} border-transparent scale-110`
-                                          : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
-                                      }`}
-                                      title={cfg.label}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {isCurrentUser &&
+                                hasRole(currentProfile, "reporter") &&
+                                datum >= todayIso && (
+                                  <button
+                                    onClick={() => setShowNovaTema(true)}
+                                    className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors shrink-0"
+                                    title="Nová téma"
+                                  >
+                                    <PlusCircle className="w-4 h-4 text-white" />
+                                  </button>
+                                )}
+
+                              {isVeduci && reporterTemy.length !== 1 && (
+                                <div className="flex items-center gap-1">
+                                  {(
+                                    [
+                                      "pracujuci",
+                                      "nepracujuci",
+                                      "volno",
+                                    ] as ReporterStav[]
+                                  ).map((s) => {
+                                    const cfg = reporterStavConfig[s];
+                                    return (
+                                      <button
+                                        key={s}
+                                        onClick={() =>
+                                          handleReporterStav(reporter.id, s)
+                                        }
+                                        className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
+                                          stav === s
+                                            ? `${cfg.dot} border-transparent scale-110`
+                                            : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
+                                        }`}
+                                        title={cfg.label}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           {/* Themes */}
@@ -978,12 +1033,15 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                               {reporterTemy.map((tema) => {
                                 const stavI = stavConfig[tema.stav];
                                 const StavIcon = stavI.icon;
+                                const isPastTema =
+                                  tema.datum && tema.datum < todayIso;
                                 const canEdit =
-                                  tema.reporter_id === currentProfile.id ||
-                                  currentProfile.rola === "admin";
+                                  (tema.reporter_id === currentProfile.id ||
+                                    hasRole(currentProfile, "admin")) &&
+                                  !isPastTema;
                                 const canChangeStav =
                                   isVeduciDna ||
-                                  currentProfile.rola === "admin";
+                                  hasRole(currentProfile, "admin");
                                 const temaKomentare = getKomentareForTema(
                                   tema.id,
                                 );
@@ -1497,6 +1555,14 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
           </div>
         </div>
       )}
+
+      <NovaTemaModal
+        isOpen={showNovaTema}
+        onClose={() => {
+          setShowNovaTema(false);
+          fetchData(true);
+        }}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AdminClient } from "@/components/admin/AdminClient";
 import type { Profile } from "@/lib/types/database";
+import { isAdmin } from "@/lib/types/database";
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -15,7 +16,7 @@ export default async function AdminPage() {
     .eq("id", user!.id)
     .single()) as { data: Profile | null };
 
-  if (!profile || profile.rola !== "admin") {
+  if (!profile || !isAdmin(profile)) {
     redirect("/domov");
   }
 

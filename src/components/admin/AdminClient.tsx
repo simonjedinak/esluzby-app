@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import type { Profile, UserRole } from "@/lib/types/database";
+import { ALL_ROLES, rolaLabels, rolaColors } from "@/lib/types/database";
 import {
   Users,
   UserPlus,
@@ -14,6 +15,9 @@ import {
   Tv,
   Eye,
   EyeOff,
+  Pencil,
+  X,
+  Check,
 } from "lucide-react";
 
 interface AdminClientProps {
@@ -27,12 +31,30 @@ export function AdminClient({ profiles }: AdminClientProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [meno, setMeno] = useState("");
   const [priezvisko, setPriezvisko] = useState("");
-  const [rola, setRola] = useState<UserRole>("reporter");
+  const [selectedRoly, setSelectedRoly] = useState<UserRole[]>(["reporter"]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Role editing state
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editingRoly, setEditingRoly] = useState<UserRole[]>([]);
+  const [roleLoading, setRoleLoading] = useState(false);
   const supabase = createClient();
   const router = useRouter();
+
+  const toggleRole = (
+    role: UserRole,
+    roly: UserRole[],
+    setRoly: (r: UserRole[]) => void,
+  ) => {
+    if (roly.includes(role)) {
+      // Don't allow removing the last role
+      if (roly.length === 1) return;
+      setRoly(roly.filter((r) => r !== role));
+    } else {
+      setRoly([...roly, role]);
+    }
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +62,6 @@ export function AdminClient({ profiles }: AdminClientProps) {
     setError("");
     setSuccess("");
 
-    // Use Supabase Admin API via edge function or direct signup
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -48,7 +69,12 @@ export function AdminClient({ profiles }: AdminClientProps) {
         data: {
           meno,
           priezvisko,
-          rola,
+          rola: selectedRoly.includes("admin")
+            ? "admin"
+            : selectedRoly.includes("veduci_vydania")
+              ? "veduci"
+              : "reporter",
+          roly: selectedRoly,
         },
       },
     });
@@ -56,28 +82,47 @@ export function AdminClient({ profiles }: AdminClientProps) {
     if (signUpError) {
       setError(signUpError.message);
     } else {
+      // Also update the roly directly on profiles
+      if (data?.user) {
+        await supabase
+          .from("profiles")
+          .update({ roly: selectedRoly } as any)
+          .eq("id", data.user.id);
+      }
       setSuccess(`Účet pre ${meno} ${priezvisko} (${email}) bol vytvorený`);
       setEmail("");
       setPassword("");
       setMeno("");
       setPriezvisko("");
-      setRola("reporter");
+      setSelectedRoly(["reporter"]);
       setShowForm(false);
       router.refresh();
     }
     setLoading(false);
   };
 
-  const roleLabels: Record<UserRole, string> = {
-    admin: "Administrátor",
-    veduci: "Vedúci",
-    reporter: "Reportér",
+  const handleSaveRoles = async (profileId: string) => {
+    setRoleLoading(true);
+    setError("");
+
+    const { error: err } = await supabase
+      .from("profiles")
+      .update({ roly: editingRoly } as any)
+      .eq("id", profileId);
+
+    if (err) {
+      setError("Nepodarilo sa aktualizovať roly");
+    } else {
+      setSuccess("Roly boli aktualizované");
+      setEditingUserId(null);
+      router.refresh();
+    }
+    setRoleLoading(false);
   };
 
-  const roleColors: Record<UserRole, string> = {
-    admin: "bg-purple-100 text-purple-700",
-    veduci: "bg-orange-100 text-orange-700",
-    reporter: "bg-blue-100 text-blue-700",
+  const startEditingRoles = (profile: Profile) => {
+    setEditingUserId(profile.id);
+    setEditingRoly(profile.roly || ["reporter"]);
   };
 
   return (
@@ -86,7 +131,7 @@ export function AdminClient({ profiles }: AdminClientProps) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Správa účtov</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Vytvárajte a spravujte používateľov
+            Vytvárajte a spravujte používateľov a ich roly
           </p>
         </div>
         <button
@@ -198,18 +243,30 @@ export function AdminClient({ profiles }: AdminClientProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 <div className="flex items-center gap-1.5">
                   <Shield className="w-4 h-4 text-gray-400" />
-                  Rola
+                  Roly
                 </div>
               </label>
-              <select
-                value={rola}
-                onChange={(e) => setRola(e.target.value as UserRole)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900"
-              >
-                <option value="reporter">Reportér</option>
-                <option value="veduci">Vedúci</option>
-                <option value="admin">Administrátor</option>
-              </select>
+              <div className="flex flex-wrap gap-2">
+                {ALL_ROLES.map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() =>
+                      toggleRole(role, selectedRoly, setSelectedRoly)
+                    }
+                    className={`text-xs px-3 py-1.5 rounded-full font-medium border-2 transition-all ${
+                      selectedRoly.includes(role)
+                        ? `${rolaColors[role]} border-current`
+                        : "bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    {rolaLabels[role]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Vyberte jednu alebo viac rolí
+              </p>
             </div>
 
             <div className="flex gap-3">
@@ -244,27 +301,83 @@ export function AdminClient({ profiles }: AdminClientProps) {
 
         <div className="divide-y divide-gray-100">
           {profiles.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center text-sm font-semibold">
-                  {p.meno[0]}
-                  {p.priezvisko[0]}
+            <div key={p.id} className="p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center text-sm font-semibold">
+                    {p.meno[0]}
+                    {p.priezvisko[0]}
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">
+                      {p.meno} {p.priezvisko}
+                    </span>
+                    <p className="text-sm text-gray-500">{p.email}</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-medium text-gray-900">
-                    {p.meno} {p.priezvisko}
-                  </span>
-                  <p className="text-sm text-gray-500">{p.email}</p>
-                </div>
+                {editingUserId === p.id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleSaveRoles(p.id)}
+                      disabled={roleLoading}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-100 hover:bg-green-200 text-green-700 transition-colors disabled:opacity-50"
+                      title="Uložiť"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingUserId(null)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                      title="Zrušiť"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => startEditingRoles(p)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors"
+                    title="Upraviť roly"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-              <span
-                className={`text-xs px-2.5 py-1 rounded-full font-medium ${roleColors[p.rola]}`}
-              >
-                {roleLabels[p.rola]}
-              </span>
+
+              {/* Role badges / editing */}
+              {editingUserId === p.id ? (
+                <div className="mt-3 ml-13">
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_ROLES.map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() =>
+                          toggleRole(role, editingRoly, setEditingRoly)
+                        }
+                        className={`text-xs px-3 py-1.5 rounded-full font-medium border-2 transition-all ${
+                          editingRoly.includes(role)
+                            ? `${rolaColors[role]} border-current`
+                            : "bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {rolaLabels[role]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 ml-13 flex flex-wrap gap-1">
+                  {(p.roly || [p.rola]).map((r: UserRole) => (
+                    <span
+                      key={r}
+                      className={`text-xs px-2.5 py-1 rounded-full font-medium ${rolaColors[r] || "bg-gray-100 text-gray-600"}`}
+                    >
+                      {rolaLabels[r] || r}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

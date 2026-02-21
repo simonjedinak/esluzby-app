@@ -1,4 +1,71 @@
-export type UserRole = "admin" | "veduci" | "reporter";
+export type UserRole =
+  | "admin"
+  | "veduci_vydania"
+  | "produkcia"
+  | "web_editor"
+  | "tn_live"
+  | "office_manazerka"
+  | "reporter";
+
+export const rolaLabels: Record<UserRole, string> = {
+  admin: "Admin",
+  veduci_vydania: "Vedúci vydania",
+  produkcia: "Produkcia",
+  web_editor: "WEB editor",
+  tn_live: "TN Live",
+  office_manazerka: "Office manažérka",
+  reporter: "Reportér",
+};
+
+export const rolaColors: Record<UserRole, string> = {
+  admin: "bg-purple-100 text-purple-700",
+  veduci_vydania: "bg-orange-100 text-orange-700",
+  produkcia: "bg-pink-100 text-pink-700",
+  web_editor: "bg-cyan-100 text-cyan-700",
+  tn_live: "bg-red-100 text-red-700",
+  office_manazerka: "bg-emerald-100 text-emerald-700",
+  reporter: "bg-blue-100 text-blue-700",
+};
+
+export const ALL_ROLES: UserRole[] = [
+  "admin",
+  "veduci_vydania",
+  "produkcia",
+  "web_editor",
+  "tn_live",
+  "office_manazerka",
+  "reporter",
+];
+
+/** Check if a profile has a specific role */
+export function hasRole(profile: Profile, role: UserRole): boolean {
+  return profile.roly?.includes(role) ?? false;
+}
+
+/** Check if a profile has any of the specified roles */
+export function hasAnyRole(profile: Profile, roles: UserRole[]): boolean {
+  return roles.some((role) => profile.roly?.includes(role));
+}
+
+/** Check if user is admin */
+export function isAdmin(profile: Profile): boolean {
+  return hasRole(profile, "admin");
+}
+
+/** Check if user can manage (admin or vedúci vydania) */
+export function canManage(profile: Profile): boolean {
+  return hasAnyRole(profile, ["admin", "veduci_vydania"]);
+}
+
+/** Check if user can set leave (admin, vedúci vydania, or office manažérka) */
+export function canSetLeave(profile: Profile): boolean {
+  return hasAnyRole(profile, ["admin", "veduci_vydania", "office_manazerka"]);
+}
+
+/** Check if user is only a reporter (no other roles) */
+export function isOnlyReporter(profile: Profile): boolean {
+  return profile.roly?.length === 1 && profile.roly[0] === "reporter";
+}
 
 export type TemaStav = "neschvalene" | "caka" | "schvalene";
 
@@ -67,6 +134,7 @@ export interface Profile {
   meno: string;
   priezvisko: string;
   rola: UserRole;
+  roly: UserRole[];
   telefon: string | null;
   region: string | null;
   created_at: string;

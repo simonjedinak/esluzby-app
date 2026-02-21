@@ -3,9 +3,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile } from "@/lib/types/database";
-import { Tv, LogOut, User, Shield } from "lucide-react";
+import type { Profile, UserRole } from "@/lib/types/database";
+import {
+  rolaLabels,
+  rolaColors,
+  hasRole,
+  isOnlyReporter,
+} from "@/lib/types/database";
+import { Tv, LogOut, User, Shield, PlusCircle } from "lucide-react";
 import { useState } from "react";
+import { NovaTemaModal } from "@/components/nova-tema/NovaTemaModal";
 
 interface NavbarProps {
   profile: Profile;
@@ -16,6 +23,7 @@ export function Navbar({ profile }: NavbarProps) {
   const router = useRouter();
   const supabase = createClient();
   const [showMenu, setShowMenu] = useState(false);
+  const [showNovaTema, setShowNovaTema] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -25,7 +33,6 @@ export function Navbar({ profile }: NavbarProps) {
 
   const navItems = [
     { href: "/domov", label: "Domov" },
-    { href: "/nova-tema", label: "Nová téma" },
     { href: "/nove-volno", label: "Nové voľno" },
     { href: "/volna", label: "Všetky voľná" },
   ];
@@ -59,6 +66,13 @@ export function Navbar({ profile }: NavbarProps) {
                 {item.label}
               </Link>
             ))}
+            <button
+              onClick={() => setShowNovaTema(true)}
+              className="ml-1 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Nová téma
+            </button>
           </div>
 
           {/* User Menu */}
@@ -74,16 +88,19 @@ export function Navbar({ profile }: NavbarProps) {
               <span className="text-sm font-medium text-gray-700 hidden lg:block">
                 {profile.meno} {profile.priezvisko}
               </span>
-              {profile.rola !== "reporter" && (
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium hidden lg:inline-block ${
-                    profile.rola === "admin"
-                      ? "bg-purple-100 text-purple-700"
-                      : "bg-orange-100 text-orange-700"
-                  }`}
-                >
-                  {profile.rola === "admin" ? "Admin" : "Vedúci"}
-                </span>
+              {!isOnlyReporter(profile) && (
+                <div className="hidden lg:flex items-center gap-1 flex-wrap">
+                  {profile.roly
+                    ?.filter((r: UserRole) => r !== "reporter")
+                    .map((r: UserRole) => (
+                      <span
+                        key={r}
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${rolaColors[r]}`}
+                      >
+                        {rolaLabels[r]}
+                      </span>
+                    ))}
+                </div>
               )}
             </button>
 
@@ -102,7 +119,7 @@ export function Navbar({ profile }: NavbarProps) {
                     <User className="w-4 h-4" />
                     Profil
                   </Link>
-                  {profile.rola === "admin" && (
+                  {hasRole(profile, "admin") && (
                     <Link
                       href="/admin"
                       onClick={() => setShowMenu(false)}
@@ -126,6 +143,11 @@ export function Navbar({ profile }: NavbarProps) {
           </div>
         </div>
       </div>
+
+      <NovaTemaModal
+        isOpen={showNovaTema}
+        onClose={() => setShowNovaTema(false)}
+      />
     </nav>
   );
 }

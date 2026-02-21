@@ -3,7 +3,12 @@
 import { format } from "date-fns";
 import { sk } from "date-fns/locale";
 import type { Profile, Volno, VolnoStav } from "@/lib/types/database";
-import { typVolnaLabels, volnoStavLabels } from "@/lib/types/database";
+import {
+  typVolnaLabels,
+  volnoStavLabels,
+  hasRole,
+  canManage,
+} from "@/lib/types/database";
 import {
   Calendar,
   Trash2,
@@ -132,7 +137,8 @@ export function VolnaClient({
     setActionLoading(false);
   };
 
-  const isAdmin = currentProfile.rola === "admin";
+  const isAdminUser =
+    hasRole(currentProfile, "admin") || canManage(currentProfile);
 
   const stavConfig: Record<
     VolnoStav,
@@ -166,26 +172,26 @@ export function VolnaClient({
 
       {/* Filter */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        {(["all", "mine", ...(isAdmin ? ["caka" as const] : [])] as const).map(
-          (f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f as any)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                filter === f
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-              }`}
-            >
-              {f === "all" ? "Všetky" : f === "mine" ? "Moje" : "Na schválenie"}
-              {f === "caka" && (
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-yellow-200 text-yellow-800 text-xs">
-                  {volnaList.filter((v) => v.stav === "caka").length}
-                </span>
-              )}
-            </button>
-          ),
-        )}
+        {(
+          ["all", "mine", ...(isAdminUser ? ["caka" as const] : [])] as const
+        ).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f as any)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+              filter === f
+                ? "bg-blue-600 text-white"
+                : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            {f === "all" ? "Všetky" : f === "mine" ? "Moje" : "Na schválenie"}
+            {f === "caka" && (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-yellow-200 text-yellow-800 text-xs">
+                {volnaList.filter((v) => v.stav === "caka").length}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {filteredVolna.length > 0 ? (
@@ -193,7 +199,7 @@ export function VolnaClient({
           {filteredVolna.map((v) => {
             const reporter = getProfile(v.reporter_id);
             const isMine = v.reporter_id === currentProfile.id;
-            const canDelete = isMine || isAdmin;
+            const canDelete = isMine || isAdminUser;
             const stav = stavConfig[v.stav || "caka"];
             const StavIcon = stav.icon;
 
@@ -283,7 +289,7 @@ export function VolnaClient({
 
                   <div className="flex items-center gap-1 ml-2 shrink-0">
                     {/* Approve/Reject buttons for admin */}
-                    {isAdmin && v.stav === "caka" && (
+                    {isAdminUser && v.stav === "caka" && (
                       <>
                         <button
                           onClick={() =>

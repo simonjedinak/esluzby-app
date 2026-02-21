@@ -23,8 +23,17 @@ import type {
   Volno,
   ReporterStav,
   TemaStav,
+  UserRole,
 } from "@/lib/types/database";
-import { typVolnaLabels, temaTypLabels } from "@/lib/types/database";
+import {
+  typVolnaLabels,
+  temaTypLabels,
+  rolaLabels,
+  rolaColors,
+  isAdmin as checkIsAdmin,
+  canManage as checkCanManage,
+  canSetLeave,
+} from "@/lib/types/database";
 import {
   User,
   Mail,
@@ -93,8 +102,9 @@ export function ProfilClient({
   const supabase = supabaseRef.current;
   const router = useRouter();
 
-  const isAdmin = currentProfile.rola === "admin";
-  const canManageService = isAdmin || currentProfile.rola === "veduci";
+  const isAdminUser = checkIsAdmin(currentProfile);
+  const canManageService =
+    checkCanManage(currentProfile) || canSetLeave(currentProfile);
 
   // Calendar helpers
   const calendarDays = useMemo(() => {
@@ -242,18 +252,6 @@ export function ProfilClient({
     setPasswordLoading(false);
   };
 
-  const roleLabels = {
-    admin: "Administrátor",
-    veduci: "Vedúci",
-    reporter: "Reportér",
-  };
-
-  const roleColors = {
-    admin: "bg-purple-100 text-purple-700",
-    veduci: "bg-orange-100 text-orange-700",
-    reporter: "bg-blue-100 text-blue-700",
-  };
-
   const stavConfig: Record<
     TemaStav,
     { label: string; color: string; icon: typeof CheckCircle }
@@ -289,12 +287,15 @@ export function ProfilClient({
               {profile.meno} {profile.priezvisko}
             </h1>
             <p className="text-sm text-gray-500">{profile.email}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <span
-                className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${roleColors[profile.rola]}`}
-              >
-                {roleLabels[profile.rola]}
-              </span>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {profile.roly?.map((r: UserRole) => (
+                <span
+                  key={r}
+                  className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${rolaColors[r]}`}
+                >
+                  {rolaLabels[r]}
+                </span>
+              ))}
               {profile.telefon && (
                 <span className="text-xs text-gray-400 flex items-center gap-1">
                   <Phone className="w-3 h-3" />

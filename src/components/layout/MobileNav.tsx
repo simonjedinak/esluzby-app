@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile } from "@/lib/types/database";
+import type { Profile, UserRole } from "@/lib/types/database";
+import {
+  rolaLabels,
+  rolaColors,
+  hasRole,
+  isOnlyReporter,
+} from "@/lib/types/database";
 import {
   Home,
   PlusCircle,
@@ -16,6 +22,7 @@ import {
   Tv,
 } from "lucide-react";
 import { useState } from "react";
+import { NovaTemaModal } from "@/components/nova-tema/NovaTemaModal";
 
 interface MobileNavProps {
   profile: Profile;
@@ -26,6 +33,7 @@ export function MobileNav({ profile }: MobileNavProps) {
   const router = useRouter();
   const supabase = createClient();
   const [showMenu, setShowMenu] = useState(false);
+  const [showNovaTema, setShowNovaTema] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -35,7 +43,6 @@ export function MobileNav({ profile }: MobileNavProps) {
 
   const navItems = [
     { href: "/domov", label: "Domov", icon: Home },
-    { href: "/nova-tema", label: "Téma", icon: PlusCircle },
     { href: "/nove-volno", label: "Voľno", icon: Calendar },
     { href: "/profil", label: "Profil", icon: User },
   ];
@@ -47,23 +54,48 @@ export function MobileNav({ profile }: MobileNavProps) {
       {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 md:hidden">
         <div className="flex items-center justify-around h-16 px-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-[60px] transition-colors ${
-                  isActive(item.href) ? "text-blue-600" : "text-gray-500"
-                }`}
-              >
-                <Icon
-                  className={`w-5 h-5 ${isActive(item.href) ? "stroke-[2.5]" : ""}`}
-                />
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
+          {/* Domov */}
+          <Link
+            href="/domov"
+            className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-[60px] transition-colors ${
+              isActive("/domov") ? "text-blue-600" : "text-gray-500"
+            }`}
+          >
+            <Home
+              className={`w-5 h-5 ${isActive("/domov") ? "stroke-[2.5]" : ""}`}
+            />
+            <span className="text-[10px] font-medium">Domov</span>
+          </Link>
+
+          {/* Téma - modal trigger */}
+          <button
+            onClick={() => setShowNovaTema(true)}
+            className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-[60px] text-blue-600"
+          >
+            <PlusCircle className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Téma</span>
+          </button>
+
+          {/* Voľno & Profil */}
+          {navItems
+            .filter((item) => item.href !== "/domov")
+            .map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-[60px] transition-colors ${
+                    isActive(item.href) ? "text-blue-600" : "text-gray-500"
+                  }`}
+                >
+                  <Icon
+                    className={`w-5 h-5 ${isActive(item.href) ? "stroke-[2.5]" : ""}`}
+                  />
+                  <span className="text-[10px] font-medium">{item.label}</span>
+                </Link>
+              );
+            })}
           <button
             onClick={() => setShowMenu(true)}
             className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-[60px] text-gray-500"
@@ -107,29 +139,43 @@ export function MobileNav({ profile }: MobileNavProps) {
                   </p>
                   <p className="text-sm text-gray-500">{profile.email}</p>
                 </div>
-                {profile.rola !== "reporter" && (
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ml-auto ${
-                      profile.rola === "admin"
-                        ? "bg-purple-100 text-purple-700"
-                        : "bg-orange-100 text-orange-700"
-                    }`}
-                  >
-                    {profile.rola === "admin" ? "Admin" : "Vedúci"}
-                  </span>
+                {!isOnlyReporter(profile) && (
+                  <div className="flex flex-wrap gap-1 ml-auto">
+                    {profile.roly
+                      ?.filter((r: UserRole) => r !== "reporter")
+                      .map((r: UserRole) => (
+                        <span
+                          key={r}
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${rolaColors[r]}`}
+                        >
+                          {rolaLabels[r]}
+                        </span>
+                      ))}
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Menu Links */}
             <div className="flex-1 p-4 space-y-1">
+              {/* Nová téma button */}
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  setShowNovaTema(true);
+                }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium w-full bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                <PlusCircle className="w-5 h-5" />
+                Nová téma
+              </button>
+
               {[
                 { href: "/domov", label: "Domov", icon: Home },
-                { href: "/nova-tema", label: "Nová téma", icon: PlusCircle },
                 { href: "/nove-volno", label: "Nové voľno", icon: Calendar },
                 { href: "/volna", label: "Všetky voľná", icon: Calendar },
                 { href: "/profil", label: "Profil", icon: User },
-                ...(profile.rola === "admin"
+                ...(hasRole(profile, "admin")
                   ? [{ href: "/admin", label: "Správa účtov", icon: Shield }]
                   : []),
               ].map((item) => {
@@ -165,6 +211,11 @@ export function MobileNav({ profile }: MobileNavProps) {
           </div>
         </div>
       )}
+
+      <NovaTemaModal
+        isOpen={showNovaTema}
+        onClose={() => setShowNovaTema(false)}
+      />
     </>
   );
 }
