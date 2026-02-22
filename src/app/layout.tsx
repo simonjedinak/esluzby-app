@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "eSlužby",
+  title: "e-jano",
   description: "Správa služieb reportérov v televíznych novinách",
 };
 

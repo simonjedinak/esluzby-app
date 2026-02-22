@@ -47,7 +47,12 @@ export function Navbar({ profile }: NavbarProps) {
             <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
               <Tv className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-gray-900">eSlužby</span>
+            <span className="flex items-center">
+              <span className="text-xl font-bold text-gray-900">e-jano</span>
+              <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                v2 Alpha
+              </span>
+            </span>
           </Link>
 
           {/* Nav Links */}
@@ -83,8 +88,9 @@ export function Navbar({ profile }: NavbarProps) {
               className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-semibold">
-                {profile.meno[0]}
-                {profile.priezvisko[0]}
+                {profile.region
+                  ? profile.region.slice(0, 2).toUpperCase()
+                  : `${profile.meno[0]}${profile.priezvisko[0]}`}
               </div>
               <span className="text-sm font-medium text-gray-700 hidden lg:block">
                 {profile.meno} {profile.priezvisko}

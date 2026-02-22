@@ -43,7 +43,13 @@ export default function LoginPage() {
             <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4">
               <Tv className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">eSlužby</h1>
+            <span className="flex items-end">
+              <h1 className="text-3xl font-extrabold text-gray-900">e-jano</h1>
+
+              <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mb-1">
+                v2 Alpha
+              </span>
+            </span>
             <p className="text-gray-500 mt-1">Prihlásenie do systému</p>
           </div>
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { Profile, UserRole } from "@/lib/types/database";
 import { ALL_ROLES, rolaLabels, rolaColors } from "@/lib/types/database";
 import {
@@ -26,7 +26,12 @@ interface AdminClientProps {
   profiles: Profile[];
 }
 
-export function AdminClient({ profiles }: AdminClientProps) {
+export function AdminClient({ profiles: initialProfiles }: AdminClientProps) {
+  const [profilesList, setProfilesList] = useState<Profile[]>(() =>
+    [...initialProfiles].sort((a, b) =>
+      a.priezvisko.localeCompare(b.priezvisko, "sk"),
+    ),
+  );
   const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,7 +52,6 @@ export function AdminClient({ profiles }: AdminClientProps) {
   const [editingJeRegionalny, setEditingJeRegionalny] = useState(false);
   const [roleLoading, setRoleLoading] = useState(false);
   const supabase = createClient();
-  const router = useRouter();
 
   const toggleRole = (
     role: UserRole,
@@ -76,11 +80,6 @@ export function AdminClient({ profiles }: AdminClientProps) {
         data: {
           meno,
           priezvisko,
-          rola: selectedRoly.includes("admin")
-            ? "admin"
-            : selectedRoly.includes("veduci_vydania")
-              ? "veduci"
-              : "reporter",
           roly: selectedRoly,
         },
       },
@@ -95,6 +94,21 @@ export function AdminClient({ profiles }: AdminClientProps) {
           .from("profiles")
           .update({ roly: selectedRoly } as any)
           .eq("id", data.user.id);
+
+        // Add the new profile to local state
+        const { data: newProfile } = (await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", data.user.id)
+          .single()) as { data: Profile | null };
+
+        if (newProfile) {
+          setProfilesList((prev) =>
+            [...prev, newProfile].sort((a, b) =>
+              a.priezvisko.localeCompare(b.priezvisko, "sk"),
+            ),
+          );
+        }
       }
       setSuccess(`Účet pre ${meno} ${priezvisko} (${email}) bol vytvorený`);
       setEmail("");
@@ -103,7 +117,6 @@ export function AdminClient({ profiles }: AdminClientProps) {
       setPriezvisko("");
       setSelectedRoly(["reporter"]);
       setShowForm(false);
-      router.refresh();
     }
     setLoading(false);
   };
@@ -127,9 +140,26 @@ export function AdminClient({ profiles }: AdminClientProps) {
     if (err) {
       setError("Nepodarilo sa aktualizovať profil");
     } else {
+      // Update local state directly to avoid layout shift
+      setProfilesList((prev) =>
+        prev
+          .map((p) =>
+            p.id === profileId
+              ? {
+                  ...p,
+                  roly: editingRoly,
+                  meno: editingMeno,
+                  priezvisko: editingPriezvisko,
+                  telefon: editingTelefon || null,
+                  region: editingRegion || null,
+                  je_regionalny: editingJeRegionalny,
+                }
+              : p,
+          )
+          .sort((a, b) => a.priezvisko.localeCompare(b.priezvisko, "sk")),
+      );
       setSuccess("Profil bol aktualizovaný");
       setEditingUserId(null);
-      router.refresh();
     }
     setRoleLoading(false);
   };
@@ -314,33 +344,39 @@ export function AdminClient({ profiles }: AdminClientProps) {
           <Users className="w-5 h-5 text-gray-400" />
           <h3 className="font-semibold text-gray-900">Používatelia</h3>
           <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-            {profiles.length}
+            {profilesList.length}
           </span>
         </div>
 
         <div className="divide-y divide-gray-100">
-          {profiles.map((p) => (
+          {profilesList.map((p) => (
             <div key={p.id} className="p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center text-sm font-semibold">
-                    {p.meno[0]}
-                    {p.priezvisko[0]}
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-900">
-                      {p.meno} {p.priezvisko}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm text-gray-500">{p.email}</p>
-                      {p.je_regionalny && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium flex items-center gap-0.5">
-                          <MapPin className="w-2.5 h-2.5" />
-                          Regionálny
-                        </span>
-                      )}
+                  <Link
+                    href={`/profil?user=${p.id}`}
+                    className="no-underline group flex items-center gap-3"
+                  >
+                    <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center text-sm font-semibold">
+                      {p.region
+                        ? p.region.slice(0, 2).toUpperCase()
+                        : `${p.meno[0]}${p.priezvisko[0]}`}
                     </div>
-                  </div>
+                    <div>
+                      <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {p.meno} {p.priezvisko}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm text-gray-500">{p.email}</p>
+                        {p.je_regionalny && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium flex items-center gap-0.5">
+                            <MapPin className="w-2.5 h-2.5" />
+                            Regionálny
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
                 </div>
                 {editingUserId === p.id ? (
                   <div className="flex items-center gap-1">
@@ -428,9 +464,13 @@ export function AdminClient({ profiles }: AdminClientProps) {
                         type="text"
                         value={editingRegion}
                         onChange={(e) => setEditingRegion(e.target.value)}
-                        placeholder="napr. BA, PO..."
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-200 text-gray-900 placeholder-gray-400"
+                        placeholder="BA, KE, BB..."
+                        maxLength={2}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-200 text-gray-900 placeholder-gray-400 uppercase"
                       />
+                      <p className="text-[10px] text-amber-600 mt-0.5">
+                        Len skratka okresu (napr. BA, KE, BB...)
+                      </p>
                     </div>
                   </div>
 
@@ -483,7 +523,7 @@ export function AdminClient({ profiles }: AdminClientProps) {
                 </div>
               ) : (
                 <div className="mt-2 ml-13 flex flex-wrap gap-1">
-                  {(p.roly || [p.rola]).map((r: UserRole) => (
+                  {(p.roly || []).map((r: UserRole) => (
                     <span
                       key={r}
                       className={`text-xs px-2.5 py-1 rounded-full font-medium ${rolaColors[r] || "bg-gray-100 text-gray-600"}`}

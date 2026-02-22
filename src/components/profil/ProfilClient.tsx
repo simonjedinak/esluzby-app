@@ -446,8 +446,9 @@ export function ProfilClient({
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-2xl font-semibold">
-            {profile.meno[0]}
-            {profile.priezvisko[0]}
+            {profile.region
+              ? profile.region.slice(0, 2).toUpperCase()
+              : `${profile.meno[0]}${profile.priezvisko[0]}`}
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900">
@@ -1059,7 +1060,7 @@ export function ProfilClient({
                   value={region}
                   onChange={(e) => setRegion(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                  placeholder="napr. BA, PO, KE..."
+                  placeholder="BA, KE, BB..."
                 />
               </div>
 

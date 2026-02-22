@@ -695,15 +695,15 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
       {/* Reporters & Themes */}
       <div className="space-y-3">
         {/* Filter bar */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="bg-white gap-5 flex flex-col md:flex-row justify-between md:items-center rounded-2xl shadow-sm border border-gray-100 p-3 md:p-4">
+          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-gray-900">Reportéri</h3>
               <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
                 {sortedFilteredReporters.length}
               </span>
             </div>
-            {(filterRegion !== "vsetci" || filterStav !== "all") && (
+            {/* {(filterRegion !== "vsetci" || filterStav !== "all") && (
               <button
                 onClick={() => {
                   setFilterRegion("vsetci");
@@ -713,11 +713,11 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
               >
                 Zrušiť filtre
               </button>
-            )}
+            )} */}
           </div>
 
           {/* Filters row: region + stav + čakajúce toggle + uložiť toggle */}
-          <div className="flex flex-col sm:flex-row gap-5 sm:items-center sm:flex-wrap">
+          <div className="flex flex-col sm:flex-row gap-5 sm:items-center sm:flex-wrap w-full sm:w-auto">
             {/* Region segmented control */}
             <div className="flex bg-gray-100 rounded-xl p-1 w-full sm:w-auto">
               {(
@@ -750,8 +750,8 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                   {
                     value: "all",
                     label: "Všetci",
-                    color: "bg-gray-100 text-gray-600",
-                    activeColor: "bg-gray-800 text-white",
+                    color: "bg-blue-50 text-blue-500",
+                    activeColor: "bg-blue-600 text-white",
                   },
                   {
                     value: "pracujuci",
@@ -769,7 +769,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                     value: "volno",
                     label: "Voľno",
                     color: "bg-gray-50 text-gray-500",
-                    activeColor: "bg-gray-500 text-white",
+                    activeColor: "bg-gray-600 text-white",
                   },
                 ] as const
               ).map((opt) => (
@@ -790,7 +790,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
             <div className="hidden sm:block w-px h-6 bg-gray-200" />
 
             {/* Čakajúce na vrch toggle */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setCakajuceNaVrch(!cakajuceNaVrch)}
                 className={`relative w-8 h-4.5 rounded-full transition-colors ${
@@ -809,7 +809,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
             <div className="hidden sm:block w-px h-6 bg-gray-200" />
 
             {/* Uložiť filtre toggle */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setUlozitFiltre(!ulozitFiltre)}
                 className={`relative w-8 h-4.5 rounded-full transition-colors ${
@@ -853,7 +853,6 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                       }`}
                     >
                       {reporterTemy.length === 0 ? (
-                        /* Compact: no topics - single line */
                         <div className="flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3 relative overflow-hidden">
                           <div
                             className={
@@ -881,8 +880,9 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                       : "bg-green-100 text-green-700"
                               }`}
                             >
-                              {reporter.meno[0]}
-                              {reporter.priezvisko[0]}
+                              {reporter.region
+                                ? reporter.region.slice(0, 2).toUpperCase()
+                                : `${reporter.meno[0]}${reporter.priezvisko[0]}`}
                             </div>
                             <div className="flex flex-col">
                               <span className="font-medium text-sm text-gray-900 group-hover:text-blue-600">
@@ -988,8 +988,9 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                         : "bg-green-100 text-green-700"
                                 }`}
                               >
-                                {reporter.meno[0]}
-                                {reporter.priezvisko[0]}
+                                {reporter.region
+                                  ? reporter.region.slice(0, 2).toUpperCase()
+                                  : `${reporter.meno[0]}${reporter.priezvisko[0]}`}
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">

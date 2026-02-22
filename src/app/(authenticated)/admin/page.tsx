@@ -23,7 +23,7 @@ export default async function AdminPage() {
   const { data: allProfiles } = (await supabase
     .from("profiles")
     .select("*")
-    .order("created_at", { ascending: false })) as { data: Profile[] | null };
+    .order("priezvisko", { ascending: true })) as { data: Profile[] | null };
 
   return <AdminClient profiles={allProfiles || []} />;
 }

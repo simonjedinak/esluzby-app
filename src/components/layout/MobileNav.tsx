@@ -116,7 +116,14 @@ export function MobileNav({ profile }: MobileNavProps) {
                 <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
                   <Tv className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-lg font-bold text-gray-900">eSlužby</span>
+                <span>
+                  <span className="text-lg font-bold text-gray-900">
+                    e-jano
+                  </span>
+                  <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mb-0.75">
+                    v2 Aplha
+                  </span>
+                </span>
               </div>
               <button
                 onClick={() => setShowMenu(false)}
@@ -130,8 +137,9 @@ export function MobileNav({ profile }: MobileNavProps) {
             <div className="p-4 border-b border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-lg font-semibold">
-                  {profile.meno[0]}
-                  {profile.priezvisko[0]}
+                  {profile.region
+                    ? profile.region.slice(0, 2).toUpperCase()
+                    : `${profile.meno[0]}${profile.priezvisko[0]}`}
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900">

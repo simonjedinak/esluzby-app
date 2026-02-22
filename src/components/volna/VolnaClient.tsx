@@ -26,6 +26,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useState, useRef } from "react";
 import type { TypVolna } from "@/lib/types/database";
 import { DatePicker } from "@/components/ui/DatePicker";
+import Link from "next/link";
 import { NoveVolnoModal } from "@/components/volna/NoveVolnoModal";
 
 interface VolnaClientProps {
@@ -243,21 +244,32 @@ export function VolnaClient({
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${
-                        isMine
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
+                    <Link
+                      href={`/profil?user=${v.reporter_id}`}
+                      className="no-underline group shrink-0"
                     >
-                      {reporter?.meno[0]}
-                      {reporter?.priezvisko[0]}
-                    </div>
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${
+                          isMine
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {reporter?.region
+                          ? reporter.region.slice(0, 2).toUpperCase()
+                          : `${reporter?.meno[0]}${reporter?.priezvisko[0]}`}
+                      </div>
+                    </Link>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-gray-900">
-                          {reporter?.meno} {reporter?.priezvisko}
-                        </span>
+                        <Link
+                          href={`/profil?user=${v.reporter_id}`}
+                          className="no-underline group"
+                        >
+                          <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                            {reporter?.meno} {reporter?.priezvisko}
+                          </span>
+                        </Link>
                         {isMine && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">
                             Vy

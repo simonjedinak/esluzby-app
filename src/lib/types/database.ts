@@ -159,7 +159,6 @@ export interface Profile {
   email: string;
   meno: string;
   priezvisko: string;
-  rola: UserRole;
   roly: UserRole[];
   telefon: string | null;
   region: string | null;

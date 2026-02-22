@@ -121,7 +121,7 @@ export function NovaTemaModal({ isOpen, onClose }: NovaTemaModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div>
@@ -139,7 +139,7 @@ export function NovaTemaModal({ isOpen, onClose }: NovaTemaModalProps) {
         </div>
 
         {/* Content */}
-        <div className="p-5">
+        <div className="p-5 flex-1 overflow-y-auto">
           {success ? (
             <div className="text-center py-4">
               <div className="flex justify-center mb-4">
