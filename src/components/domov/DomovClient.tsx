@@ -110,6 +110,8 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   );
   // Nova tema modal
   const [showNovaTema, setShowNovaTema] = useState(false);
+  // Expanded popis state
+  const [expandedPopis, setExpandedPopis] = useState<Set<string>>(new Set());
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
   const scrollRestoreRef = useRef<number | null>(null);
@@ -459,14 +461,14 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     }
   > = {
     pracujuci: {
-      label: "Pracujúci",
+      label: "Pracuje",
       color: "text-green-700",
       dot: "bg-green-500",
       hoverBorder: "hover:border-green-600/30",
       hoverBg: "hover:bg-green-500/10",
     },
     nepracujuci: {
-      label: "Nepracujúci",
+      label: "Nepracuje",
       color: "text-red-700",
       dot: "bg-red-500",
       hoverBorder: "hover:border-red-600/30",
@@ -858,22 +860,21 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                               {reporter.meno[0]}
                               {reporter.priezvisko[0]}
                             </div>
-                            <span className="font-medium text-sm text-gray-900 group-hover:text-blue-600">
-                              {reporter.priezvisko} {reporter.meno}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm text-gray-900 group-hover:text-blue-600">
+                                {reporter.priezvisko} {reporter.meno}
+                              </span>
+                              <span
+                                className={`text-[11px] font-[450] -mt-0.5 ${stavInfo.color}`}
+                              >
+                                {stavInfo.label}
+                              </span>
+                            </div>
                             {isCurrentUser && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">
                                 Vy
                               </span>
                             )}
-                            <div
-                              className={`w-1.5 h-1.5 rounded-full ${stavInfo.dot}`}
-                            />
-                            <span
-                              className={`text-xs font-medium ${stavInfo.color}`}
-                            >
-                              {stavInfo.label}
-                            </span>
                             {reporter.telefon && (
                               <span className="text-xs text-gray-400 ml-1">
                                 {reporter.telefon}
@@ -931,9 +932,9 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                         >
                           {/* Reporter Header */}
                           <div
-                            className={`flex items-center justify-between p-3 sm:p-4 relative overflow-hidden ${
+                            className={`flex items-center justify-between px-3 py-2 sm:px-4 relative overflow-hidden ${
                               reporterTemy.length === 1
-                                ? "md:border-r md:border-b-0 border-b border-gray-50 shrink-0"
+                                ? "pr-12 md:pr-4 md:border-r md:border-b-0 border-b border-gray-50 shrink-0"
                                 : "border-b border-gray-50"
                             }`}
                           >
@@ -977,7 +978,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                     </span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-1.5 mt-0.5">
+                                <div className="flex items-center gap-1.5 -mt-0.5">
                                   <div
                                     className={`w-2 h-2 rounded-full ${stavInfo.dot}`}
                                   />
@@ -986,11 +987,12 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                   >
                                     {stavInfo.label}
                                   </span>
-                                  {reporter.telefon && (
-                                    <span className="text-xs text-gray-400 ml-2">
-                                      {reporter.telefon}
-                                    </span>
-                                  )}
+                                  {reporter.telefon &&
+                                    reporterTemy.length !== 1 && (
+                                      <span className="text-xs text-gray-400 ml-2">
+                                        {reporter.telefon}
+                                      </span>
+                                    )}
                                 </div>
                               </div>
                             </Link>
@@ -998,7 +1000,8 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                             <div className="flex items-center gap-2">
                               {isCurrentUser &&
                                 hasRole(currentProfile, "reporter") &&
-                                datum >= todayIso && (
+                                datum >= todayIso &&
+                                reporterTemy.length !== 1 && (
                                   <button
                                     onClick={() => setShowNovaTema(true)}
                                     className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors shrink-0"
@@ -1066,50 +1069,110 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                 const temaKomentare = getKomentareForTema(
                                   tema.id,
                                 );
+                                const schvalilProfile = tema.schvalil_id
+                                  ? getProfile(tema.schvalil_id)
+                                  : null;
+                                const POPIS_LIMIT = 110;
+                                const isPopisLong =
+                                  tema.popis && tema.popis.length > POPIS_LIMIT;
+                                const isPopisExpanded = expandedPopis.has(
+                                  tema.id,
+                                );
                                 return (
                                   <div
                                     key={tema.id}
-                                    className={`p-3 rounded-xl border ${stavI.color}`}
+                                    className={`px-3 py-2 rounded-xl border ${stavI.color}`}
                                   >
-                                    <div className="flex items-start justify-between">
+                                    {/* Main row: [icon] [content] [actions] */}
+                                    <div className="flex items-start gap-1.5">
+                                      <StavIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+
+                                      {/* Content column */}
                                       <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <StavIcon className="w-4 h-4 shrink-0" />
-                                          <span className="font-medium text-sm">
+                                        {/* Line 1: name + type + miesto + approver */}
+                                        <div className="flex items-center gap-x-4  gap-y-0.5 flex-wrap">
+                                          <span className="font-semibold text-sm leading-tight">
                                             {tema.nazov}
                                           </span>
                                           {tema.typ &&
                                             tema.typ !== "reportaz" && (
-                                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/50 font-medium">
+                                              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-white/60 font-medium shrink-0">
                                                 {temaTypLabels[tema.typ]}
                                               </span>
                                             )}
-                                        </div>
-                                        {tema.popis && (
-                                          <p className="text-xs mt-1 ml-6 opacity-80">
-                                            {tema.popis}
-                                          </p>
-                                        )}
-                                        {tema.miesto && (
-                                          <div className="flex items-center gap-1 mt-1 ml-6">
-                                            <MapPin className="w-3 h-3 opacity-60" />
-                                            <span className="text-xs opacity-80">
+                                          {tema.miesto && (
+                                            <span className="flex items-center gap-0.75 text-xs opacity-90 shrink-0">
+                                              <MapPin className="w-3.5 h-3.5 opacity-60" />
                                               {tema.miesto}
                                             </span>
-                                          </div>
+                                          )}
+                                          {tema.stav !== "caka" &&
+                                            schvalilProfile && (
+                                              <span className="flex items-center gap-0.75 text-xs opacity-90 shrink-0">
+                                                {tema.stav === "schvalene" ? (
+                                                  <CheckCircle className="w-3 h-3 opacity-80" />
+                                                ) : (
+                                                  <XCircle className="w-3 h-3 opacity-80" />
+                                                )}
+                                                <span className="opacity-80">
+                                                  {tema.stav === "schvalene"
+                                                    ? "Schválil"
+                                                    : "Neschválil"}
+                                                  :
+                                                </span>
+                                                <span className="font-medium opacity-90">
+                                                  {schvalilProfile.priezvisko}{" "}
+                                                  {schvalilProfile.meno}
+                                                </span>
+                                              </span>
+                                            )}
+                                        </div>
+
+                                        {/* Popis with truncation */}
+                                        {tema.popis && (
+                                          <p className="text-xs mt-0.5 opacity-90 leading-relaxed">
+                                            {isPopisLong && !isPopisExpanded
+                                              ? tema.popis.slice(
+                                                  0,
+                                                  POPIS_LIMIT,
+                                                ) + "…"
+                                              : tema.popis}
+                                            {isPopisLong && (
+                                              <button
+                                                onClick={() =>
+                                                  setExpandedPopis((prev) => {
+                                                    const next = new Set(prev);
+                                                    if (isPopisExpanded) {
+                                                      next.delete(tema.id);
+                                                    } else {
+                                                      next.add(tema.id);
+                                                    }
+                                                    return next;
+                                                  })
+                                                }
+                                                className="ml-1 font-medium underline underline-offset-2 opacity-70 hover:opacity-100 transition-opacity"
+                                              >
+                                                {isPopisExpanded
+                                                  ? "menej"
+                                                  : "viac"}
+                                              </button>
+                                            )}
+                                          </p>
                                         )}
+
                                         {/* Legacy single comment */}
                                         {tema.poznamka_veduceho && (
-                                          <div className="flex items-start gap-1.5 mt-2 ml-6">
+                                          <div className="flex items-start gap-1 mt-0.5">
                                             <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 opacity-60" />
-                                            <p className="text-xs italic opacity-80">
+                                            <p className="text-xs italic opacity-75">
                                               {tema.poznamka_veduceho}
                                             </p>
                                           </div>
                                         )}
+
                                         {/* Multiple comments */}
                                         {temaKomentare.length > 0 && (
-                                          <div className="mt-2 ml-6 space-y-1.5">
+                                          <div className="mt-0.5 space-y-0.5">
                                             {temaKomentare.map((kom) => {
                                               const autor = getProfile(
                                                 kom.autor_id,
@@ -1117,10 +1180,10 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                               return (
                                                 <div
                                                   key={kom.id}
-                                                  className="flex items-start gap-1.5"
+                                                  className="flex items-start gap-1"
                                                 >
                                                   <MessageSquare className="w-3 h-3 mt-0.5 shrink-0 opacity-60" />
-                                                  <div className="text-xs">
+                                                  <p className="text-xs">
                                                     <span className="font-medium opacity-90">
                                                       {autor
                                                         ? `${autor.priezvisko} ${autor.meno}`
@@ -1138,16 +1201,17 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                                         "d.M. HH:mm",
                                                       )}
                                                     </span>
-                                                  </div>
+                                                  </p>
                                                 </div>
                                               );
                                             })}
                                           </div>
                                         )}
+
                                         {/* Inline comment input */}
                                         {canChangeStav &&
                                           novyKomentar?.temaId === tema.id && (
-                                            <div className="flex items-center gap-1.5 mt-2 ml-6">
+                                            <div className="flex items-center gap-1.5 mt-1">
                                               <input
                                                 type="text"
                                                 value={novyKomentar.text}
@@ -1197,14 +1261,15 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                           )}
                                       </div>
 
-                                      <div className="flex items-center gap-1 ml-2 shrink-0">
+                                      {/* Actions column */}
+                                      <div className="flex items-center gap-1 shrink-0">
                                         {canEdit && (
                                           <button
                                             onClick={() => openEditModal(tema)}
-                                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
+                                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
                                             title="Upraviť"
                                           >
-                                            <Pencil className="w-3.5 h-3.5" />
+                                            <Pencil className="w-3 h-3" />
                                           </button>
                                         )}
                                         {canEdit && (
@@ -1212,13 +1277,12 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                             onClick={() =>
                                               handleDeleteTema(tema.id)
                                             }
-                                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
+                                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
                                             title="Zmazať"
                                           >
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <Trash2 className="w-3 h-3" />
                                           </button>
                                         )}
-                                        {/* Add comment button */}
                                         {canChangeStav &&
                                           novyKomentar?.temaId !== tema.id && (
                                             <button
@@ -1228,13 +1292,12 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                                   text: "",
                                                 })
                                               }
-                                              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
+                                              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors"
                                               title="Pridať komentár"
                                             >
-                                              <MessageSquare className="w-3.5 h-3.5" />
+                                              <MessageSquare className="w-3 h-3" />
                                             </button>
                                           )}
-                                        {/* Status change buttons for admin/veduci_dna */}
                                         {canChangeStav &&
                                           tema.stav === "caka" && (
                                             <>
@@ -1245,10 +1308,10 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                                     action: "schvalene",
                                                   })
                                                 }
-                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-200 hover:bg-green-300 text-green-800 transition-colors"
+                                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-200 hover:bg-green-300 text-green-800 transition-colors"
                                                 title="Schváliť"
                                               >
-                                                <CheckCircle className="w-4 h-4" />
+                                                <CheckCircle className="w-3.5 h-3.5" />
                                               </button>
                                               <button
                                                 onClick={() =>
@@ -1257,14 +1320,13 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                                     action: "neschvalene",
                                                   })
                                                 }
-                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-200 hover:bg-red-300 text-red-800 transition-colors"
+                                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-200 hover:bg-red-300 text-red-800 transition-colors"
                                                 title="Neschváliť"
                                               >
-                                                <XCircle className="w-4 h-4" />
+                                                <XCircle className="w-3.5 h-3.5" />
                                               </button>
                                             </>
                                           )}
-                                        {/* Status change for already approved/rejected */}
                                         {canChangeStav &&
                                           tema.stav !== "caka" && (
                                             <button
@@ -1277,7 +1339,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                                       : "schvalene",
                                                 })
                                               }
-                                              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                                              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
                                                 tema.stav === "schvalene"
                                                   ? "bg-red-200 hover:bg-red-300 text-red-800"
                                                   : "bg-green-200 hover:bg-green-300 text-green-800"
@@ -1289,13 +1351,12 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                               }
                                             >
                                               {tema.stav === "schvalene" ? (
-                                                <XCircle className="w-4 h-4" />
+                                                <XCircle className="w-3.5 h-3.5" />
                                               ) : (
-                                                <CheckCircle className="w-4 h-4" />
+                                                <CheckCircle className="w-3.5 h-3.5" />
                                               )}
                                             </button>
                                           )}
-                                        {/* Reset to caka */}
                                         {canChangeStav &&
                                           tema.stav !== "caka" && (
                                             <button
@@ -1305,10 +1366,10 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                                   newStav: "caka",
                                                 })
                                               }
-                                              className="w-8 h-8 flex items-center justify-center rounded-lg bg-yellow-200 hover:bg-yellow-300 text-yellow-800 transition-colors"
+                                              className="w-7 h-7 flex items-center justify-center rounded-lg bg-yellow-200 hover:bg-yellow-300 text-yellow-800 transition-colors"
                                               title="Vrátiť na čakajúcu"
                                             >
-                                              <RotateCcw className="w-4 h-4" />
+                                              <RotateCcw className="w-3.5 h-3.5" />
                                             </button>
                                           )}
                                       </div>
@@ -1319,31 +1380,44 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                             </div>
                           </div>
                           {/* Ensure reporter-level status buttons sit on the right for single-theme rows */}
-                          {isVeduci && reporterTemy.length === 1 && (
-                            <div className="absolute top-3 right-3 z-10 flex items-center gap-1 md:static md:ml-2 ml-0 shrink-0">
-                              {(
-                                [
-                                  "pracujuci",
-                                  "nepracujuci",
-                                  "volno",
-                                ] as ReporterStav[]
-                              ).map((s) => {
-                                const cfg = reporterStavConfig[s];
-                                return (
+                          {reporterTemy.length === 1 && (
+                            <div className="absolute top-3 right-3 z-10 flex items-center gap-1 md:static ml-0 shrink-0 ">
+                              {isCurrentUser &&
+                                hasRole(currentProfile, "reporter") &&
+                                datum >= todayIso && (
                                   <button
-                                    key={s}
-                                    onClick={() =>
-                                      handleReporterStav(reporter.id, s)
-                                    }
-                                    className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
-                                      stav === s
-                                        ? `${cfg.dot} border-transparent scale-110`
-                                        : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
-                                    }`}
-                                    title={cfg.label}
-                                  />
-                                );
-                              })}
+                                    onClick={() => setShowNovaTema(true)}
+                                    className="w-8 h-8 bg-blue-600 rounded-xl md:mr-[1.3rem] md:ml-2 flex items-center justify-center hover:bg-blue-700 transition-colors shrink-0"
+                                    title="Nová téma"
+                                  >
+                                    <PlusCircle className="w-4 h-4 text-white" />
+                                  </button>
+                                )}
+
+                              {isVeduci &&
+                                (
+                                  [
+                                    "pracujuci",
+                                    "nepracujuci",
+                                    "volno",
+                                  ] as ReporterStav[]
+                                ).map((s) => {
+                                  const cfg = reporterStavConfig[s];
+                                  return (
+                                    <button
+                                      key={s}
+                                      onClick={() =>
+                                        handleReporterStav(reporter.id, s)
+                                      }
+                                      className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
+                                        stav === s
+                                          ? `${cfg.dot} border-transparent scale-110`
+                                          : `border-gray-300 ${cfg.hoverBorder} ${cfg.hoverBg} hover:scale-115`
+                                      }`}
+                                      title={cfg.label}
+                                    />
+                                  );
+                                })}
                             </div>
                           )}
                         </div>
