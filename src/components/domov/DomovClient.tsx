@@ -290,21 +290,42 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     if (!schvalovaniModal) return;
     setStavLoading(true);
 
+    const { tema, action } = schvalovaniModal;
+
     await supabase
       .from("temy")
       .update({
-        stav: schvalovaniModal.action,
+        stav: action,
         schvalil_id: currentProfile.id,
       } as any)
-      .eq("id", schvalovaniModal.tema.id);
+      .eq("id", tema.id);
 
     // Add comment if provided
     if (poznamka.trim()) {
       await supabase.from("tema_komentare").insert({
-        tema_id: schvalovaniModal.tema.id,
+        tema_id: tema.id,
         autor_id: currentProfile.id,
         text: poznamka.trim(),
       } as any);
+    }
+
+    // Send email notification to the reporter
+    const reporter = getProfile(tema.reporter_id);
+    if (reporter && reporter.email && reporter.id !== currentProfile.id) {
+      fetch("/api/email/tema-stav", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          temaId: tema.id,
+          temaNazov: tema.nazov,
+          temaDatum: tema.datum,
+          reporterEmail: reporter.email,
+          reporterMeno: `${reporter.meno} ${reporter.priezvisko}`,
+          novyStav: action,
+          zmenilMeno: `${currentProfile.meno} ${currentProfile.priezvisko}`,
+          poznamka: poznamka.trim() || null,
+        }),
+      }).catch((e) => console.error("Email error:", e));
     }
 
     setSchvalovaniModal(null);
@@ -372,6 +393,28 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
       autor_id: currentProfile.id,
       text: text.trim(),
     } as any);
+
+    // Send email notification to the reporter (only if someone else commented)
+    const tema = temy.find((t) => t.id === temaId);
+    if (tema) {
+      const reporter = getProfile(tema.reporter_id);
+      if (reporter && reporter.email && reporter.id !== currentProfile.id) {
+        fetch("/api/email/tema-komentar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            temaId: tema.id,
+            temaNazov: tema.nazov,
+            temaDatum: tema.datum,
+            reporterEmail: reporter.email,
+            reporterMeno: `${reporter.meno} ${reporter.priezvisko}`,
+            autorMeno: `${currentProfile.meno} ${currentProfile.priezvisko}`,
+            komentar: text.trim(),
+          }),
+        }).catch((e) => console.error("Email error:", e));
+      }
+    }
+
     setNovyKomentar(null);
     fetchData(true);
   };
@@ -380,20 +423,41 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     if (!stavChangeModal) return;
     setStavLoading(true);
 
+    const { tema, newStav } = stavChangeModal;
+
     await supabase
       .from("temy")
       .update({
-        stav: stavChangeModal.newStav,
+        stav: newStav,
         schvalil_id: currentProfile.id,
       } as any)
-      .eq("id", stavChangeModal.tema.id);
+      .eq("id", tema.id);
 
     if (stavChangePoznamka.trim()) {
       await supabase.from("tema_komentare").insert({
-        tema_id: stavChangeModal.tema.id,
+        tema_id: tema.id,
         autor_id: currentProfile.id,
         text: stavChangePoznamka.trim(),
       } as any);
+    }
+
+    // Send email notification to the reporter
+    const reporter = getProfile(tema.reporter_id);
+    if (reporter && reporter.email && reporter.id !== currentProfile.id) {
+      fetch("/api/email/tema-stav", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          temaId: tema.id,
+          temaNazov: tema.nazov,
+          temaDatum: tema.datum,
+          reporterEmail: reporter.email,
+          reporterMeno: `${reporter.meno} ${reporter.priezvisko}`,
+          novyStav: newStav,
+          zmenilMeno: `${currentProfile.meno} ${currentProfile.priezvisko}`,
+          poznamka: stavChangePoznamka.trim() || null,
+        }),
+      }).catch((e) => console.error("Email error:", e));
     }
 
     setStavChangeModal(null);
@@ -882,7 +946,8 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                             >
                               {reporter.region
                                 ? reporter.region.slice(0, 2).toUpperCase()
-                                : `${reporter.meno[0]}${reporter.priezvisko[0]}`}
+                                : `${reporter.meno?.[0] ?? ""}${reporter.priezvisko?.[0] ?? ""}` ||
+                                  "?"}
                             </div>
                             <div className="flex flex-col">
                               <span className="font-medium text-sm text-gray-900 group-hover:text-blue-600">
@@ -990,7 +1055,8 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                               >
                                 {reporter.region
                                   ? reporter.region.slice(0, 2).toUpperCase()
-                                  : `${reporter.meno[0]}${reporter.priezvisko[0]}`}
+                                  : `${reporter.meno?.[0] ?? ""}${reporter.priezvisko?.[0] ?? ""}` ||
+                                    "?"}
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">

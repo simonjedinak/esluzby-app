@@ -25,7 +25,7 @@ export default async function AuthenticatedLayout({
     .single();
 
   if (!profile) {
-    redirect("/login");
+    redirect("/api/auth/signout");
   }
 
   return (

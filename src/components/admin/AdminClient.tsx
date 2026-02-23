@@ -20,13 +20,19 @@ import {
   Check,
   MapPin,
   Phone,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 interface AdminClientProps {
   profiles: Profile[];
+  currentProfile: Profile;
 }
 
-export function AdminClient({ profiles: initialProfiles }: AdminClientProps) {
+export function AdminClient({
+  profiles: initialProfiles,
+  currentProfile,
+}: AdminClientProps) {
   const [profilesList, setProfilesList] = useState<Profile[]>(() =>
     [...initialProfiles].sort((a, b) =>
       a.priezvisko.localeCompare(b.priezvisko, "sk"),
@@ -51,6 +57,8 @@ export function AdminClient({ profiles: initialProfiles }: AdminClientProps) {
   const [editingRegion, setEditingRegion] = useState("");
   const [editingJeRegionalny, setEditingJeRegionalny] = useState(false);
   const [roleLoading, setRoleLoading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const supabase = createClient();
 
   const toggleRole = (
@@ -73,44 +81,41 @@ export function AdminClient({ profiles: initialProfiles }: AdminClientProps) {
     setError("");
     setSuccess("");
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          meno,
-          priezvisko,
-          roly: selectedRoly,
-        },
-      },
+    const res = await fetch("/api/admin/create-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        password,
+        meno,
+        priezvisko,
+        roly: selectedRoly,
+      }),
     });
 
-    if (signUpError) {
-      setError(signUpError.message);
+    const json = await res.json();
+
+    if (!res.ok) {
+      setError(json.error ?? "Nepodarilo sa vytvoriť účet");
     } else {
-      // Also update the roly directly on profiles
-      if (data?.user) {
-        await supabase
-          .from("profiles")
-          .update({ roly: selectedRoly } as any)
-          .eq("id", data.user.id);
+      // Fetch the new profile to add to local state
+      const { data: newProfile } = (await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", json.userId)
+        .single()) as { data: Profile | null };
 
-        // Add the new profile to local state
-        const { data: newProfile } = (await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", data.user.id)
-          .single()) as { data: Profile | null };
-
-        if (newProfile) {
-          setProfilesList((prev) =>
-            [...prev, newProfile].sort((a, b) =>
-              a.priezvisko.localeCompare(b.priezvisko, "sk"),
-            ),
-          );
-        }
+      if (newProfile) {
+        setProfilesList((prev) =>
+          [...prev, newProfile].sort((a, b) =>
+            a.priezvisko.localeCompare(b.priezvisko, "sk"),
+          ),
+        );
       }
-      setSuccess(`Účet pre ${meno} ${priezvisko} (${email}) bol vytvorený`);
+
+      setSuccess(
+        `Účet pre ${meno} ${priezvisko} (${email}) bol vytvorený. Prihlasovacie údaje boli odoslané na email.`,
+      );
       setEmail("");
       setPassword("");
       setMeno("");
@@ -124,6 +129,8 @@ export function AdminClient({ profiles: initialProfiles }: AdminClientProps) {
   const handleSaveRoles = async (profileId: string) => {
     setRoleLoading(true);
     setError("");
+
+    const oldProfile = profilesList.find((p) => p.id === profileId);
 
     const { error: err } = await supabase
       .from("profiles")
@@ -160,8 +167,90 @@ export function AdminClient({ profiles: initialProfiles }: AdminClientProps) {
       );
       setSuccess("Profil bol aktualizovaný");
       setEditingUserId(null);
+
+      // Build diff and send email notification (only if something actually changed)
+      if (oldProfile) {
+        type Zmena = { pole: string; stara: string; nova: string };
+        const zmeny: Zmena[] = [];
+
+        if (oldProfile.meno !== editingMeno)
+          zmeny.push({
+            pole: "Meno",
+            stara: oldProfile.meno,
+            nova: editingMeno,
+          });
+        if (oldProfile.priezvisko !== editingPriezvisko)
+          zmeny.push({
+            pole: "Priezvisko",
+            stara: oldProfile.priezvisko,
+            nova: editingPriezvisko,
+          });
+        if ((oldProfile.telefon ?? "") !== editingTelefon)
+          zmeny.push({
+            pole: "Telefón",
+            stara: oldProfile.telefon ?? "",
+            nova: editingTelefon,
+          });
+        if ((oldProfile.region ?? "") !== editingRegion)
+          zmeny.push({
+            pole: "Región",
+            stara: oldProfile.region ?? "",
+            nova: editingRegion,
+          });
+        if (oldProfile.je_regionalny !== editingJeRegionalny)
+          zmeny.push({
+            pole: "Regionálny redaktor",
+            stara: oldProfile.je_regionalny ? "Áno" : "Nie",
+            nova: editingJeRegionalny ? "Áno" : "Nie",
+          });
+        const oldRoly = [...(oldProfile.roly ?? [])].sort().join(", ");
+        const newRoly = [...editingRoly].sort().join(", ");
+        if (oldRoly !== newRoly)
+          zmeny.push({
+            pole: "Roly",
+            stara: (oldProfile.roly ?? [])
+              .map((r) => rolaLabels[r] ?? r)
+              .join(", "),
+            nova: editingRoly.map((r) => rolaLabels[r] ?? r).join(", "),
+          });
+
+        if (zmeny.length > 0) {
+          fetch("/api/email/profil-zmena", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userEmail: oldProfile.email,
+              userMeno: `${editingMeno} ${editingPriezvisko}`,
+              adminMeno: `${currentProfile.meno} ${currentProfile.priezvisko}`,
+              zmeny,
+            }),
+          }).catch((e) => console.error("Email error:", e));
+        }
+      }
     }
     setRoleLoading(false);
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    setDeleteLoading(true);
+    setError("");
+
+    const res = await fetch("/api/admin/delete-user", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      setError(json.error ?? "Nepodarilo sa odstrániť účet");
+    } else {
+      setProfilesList((prev) => prev.filter((p) => p.id !== userId));
+      setSuccess("Účet bol odstránený");
+    }
+    setConfirmDeleteId(null);
+    setDeleteLoading(false);
   };
 
   const startEditingRoles = (profile: Profile) => {
@@ -360,7 +449,8 @@ export function AdminClient({ profiles: initialProfiles }: AdminClientProps) {
                     <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center text-sm font-semibold">
                       {p.region
                         ? p.region.slice(0, 2).toUpperCase()
-                        : `${p.meno[0]}${p.priezvisko[0]}`}
+                        : `${p.meno?.[0] ?? ""}${p.priezvisko?.[0] ?? ""}` ||
+                          "?"}
                     </div>
                     <div>
                       <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
@@ -397,13 +487,22 @@ export function AdminClient({ profiles: initialProfiles }: AdminClientProps) {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => startEditingRoles(p)}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors"
-                    title="Upraviť roly"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => startEditingRoles(p)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors"
+                      title="Upraviť"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(p.id)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Odstrániť účet"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -519,6 +618,34 @@ export function AdminClient({ profiles: initialProfiles }: AdminClientProps) {
                     <span className="text-xs text-gray-600 font-medium">
                       Regionálny redaktor
                     </span>
+                  </div>
+                </div>
+              ) : confirmDeleteId === p.id ? (
+                <div className="mt-3 ml-13 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-red-700">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>
+                      Naozaj odstrániť{" "}
+                      <strong>
+                        {p.meno} {p.priezvisko}
+                      </strong>
+                      ? Táto akcia je nevratná.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+                    >
+                      Zrušiť
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(p.id)}
+                      disabled={deleteLoading}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                    >
+                      {deleteLoading ? "Odstraňujem..." : "Odstrániť"}
+                    </button>
                   </div>
                 </div>
               ) : (

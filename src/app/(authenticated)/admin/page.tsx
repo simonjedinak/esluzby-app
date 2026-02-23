@@ -25,5 +25,5 @@ export default async function AdminPage() {
     .select("*")
     .order("priezvisko", { ascending: true })) as { data: Profile[] | null };
 
-  return <AdminClient profiles={allProfiles || []} />;
+  return <AdminClient profiles={allProfiles || []} currentProfile={profile} />;
 }

@@ -448,7 +448,8 @@ export function ProfilClient({
           <div className="w-16 h-16 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-2xl font-semibold">
             {profile.region
               ? profile.region.slice(0, 2).toUpperCase()
-              : `${profile.meno[0]}${profile.priezvisko[0]}`}
+              : `${profile.meno?.[0] ?? ""}${profile.priezvisko?.[0] ?? ""}` ||
+                "?"}
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900">

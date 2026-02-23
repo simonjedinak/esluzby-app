@@ -139,7 +139,8 @@ export function MobileNav({ profile }: MobileNavProps) {
                 <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-lg font-semibold">
                   {profile.region
                     ? profile.region.slice(0, 2).toUpperCase()
-                    : `${profile.meno[0]}${profile.priezvisko[0]}`}
+                    : `${profile.meno?.[0] ?? ""}${profile.priezvisko?.[0] ?? ""}` ||
+                      "?"}
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900">

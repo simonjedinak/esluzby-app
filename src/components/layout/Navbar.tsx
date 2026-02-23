@@ -90,7 +90,8 @@ export function Navbar({ profile }: NavbarProps) {
               <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-semibold">
                 {profile.region
                   ? profile.region.slice(0, 2).toUpperCase()
-                  : `${profile.meno[0]}${profile.priezvisko[0]}`}
+                  : `${profile.meno?.[0] ?? ""}${profile.priezvisko?.[0] ?? ""}` ||
+                    "?"}
               </div>
               <span className="text-sm font-medium text-gray-700 hidden lg:block">
                 {profile.meno} {profile.priezvisko}

@@ -257,7 +257,8 @@ export function VolnaClient({
                       >
                         {reporter?.region
                           ? reporter.region.slice(0, 2).toUpperCase()
-                          : `${reporter?.meno[0]}${reporter?.priezvisko[0]}`}
+                          : `${reporter?.meno?.[0] ?? ""}${reporter?.priezvisko?.[0] ?? ""}` ||
+                            "?"}
                       </div>
                     </Link>
                     <div className="min-w-0">
