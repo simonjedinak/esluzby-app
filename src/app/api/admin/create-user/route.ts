@@ -67,6 +67,8 @@ export async function POST(req: NextRequest) {
               <td style="padding: 8px 12px; background: #f8fafc; border-radius: 0 4px 4px 0;"><strong>${password}</strong></td>
             </tr>
           </table>
+          <p style="margin: 16px 0;">Prihláste sa na: <a href="https://www.ejano.vercel.app" style="color:#1d4ed8; text-decoration:none;">https://www.ejano.vercel.app</a></p>
+          <p style="text-align:center; margin: 12px 0;"><a href="https://www.ejano.vercel.app" style="background:#1d4ed8;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;">Prihlásiť sa</a></p>
           <p style="color: #dc2626; font-weight: bold;">⚠️ Po prvom prihlásení si prosím zmeňte heslo v nastaveniach profilu.</p>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
           <p style="color: #64748b; font-size: 13px;">Tento email bol odoslaný automaticky. Neodpovedajte naň.</p>
