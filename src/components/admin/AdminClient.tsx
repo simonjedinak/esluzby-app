@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import type { Profile, UserRole } from "@/lib/types/database";
@@ -59,7 +59,35 @@ export function AdminClient({
   const [roleLoading, setRoleLoading] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
+
+  const fetchProfiles = useCallback(async () => {
+    const { data } = await supabase.from("profiles").select("*");
+    if (data) {
+      setProfilesList(
+        [...(data as unknown as Profile[])].sort((a, b) =>
+          a.priezvisko.localeCompare(b.priezvisko, "sk"),
+        ),
+      );
+    }
+  }, [supabase]);
+
+  // Realtime subscription on profiles table
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-profiles-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => fetchProfiles(),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, fetchProfiles]);
 
   const toggleRole = (
     role: UserRole,

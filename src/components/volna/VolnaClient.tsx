@@ -23,7 +23,7 @@ import {
   History,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { TypVolna } from "@/lib/types/database";
 import { DatePicker } from "@/components/ui/DatePicker";
 import Link from "next/link";
@@ -57,6 +57,30 @@ export function VolnaClient({
   const [showNoveVolno, setShowNoveVolno] = useState(false);
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
+
+  const fetchVolna = useCallback(async () => {
+    const { data } = await supabase
+      .from("volna")
+      .select("*")
+      .order("datum_od", { ascending: false });
+    if (data) setVolnaList(data as unknown as Volno[]);
+  }, [supabase]);
+
+  // Realtime subscription — WebSockets handled by Supabase, no cost to hosting
+  useEffect(() => {
+    const channel = supabase
+      .channel("volna-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "volna" },
+        () => fetchVolna(),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, fetchVolna]);
 
   const getProfile = (id: string) => allProfiles.find((p) => p.id === id);
 

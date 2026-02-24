@@ -220,6 +220,62 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     fetchData();
   }, [fetchData]);
 
+  // Realtime subscriptions — Supabase handles WebSockets server-side, no cost to hosting
+  useEffect(() => {
+    const channel = supabase
+      .channel(`domov-${datum}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "temy",
+          filter: `datum=eq.${datum}`,
+        },
+        () => fetchData(true),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "veduci_dna",
+          filter: `datum=eq.${datum}`,
+        },
+        () => fetchData(true),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "denny_stav",
+          filter: `datum=eq.${datum}`,
+        },
+        () => fetchData(true),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "denny_pozicie",
+          filter: `datum=eq.${datum}`,
+        },
+        () => fetchData(true),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tema_komentare" },
+        () => fetchData(true),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [datum, supabase, fetchData]);
+
   const getProfile = (id: string) => allProfiles.find((p) => p.id === id);
 
   const getReporterStav = (reporterId: string): ReporterStav => {
