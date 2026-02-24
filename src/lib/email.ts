@@ -14,11 +14,11 @@ export function createTransporter() {
   }) as ReturnType<typeof nodemailer.createTransport>;
 }
 
-export const FROM = `"eSlužby" <${process.env.GMAIL_USER}>`;
+export const FROM = `"e-jano" <${process.env.GMAIL_USER}>`;
 
 /** Deterministic Message-ID for a given tema — allows threading without DB changes */
 export function temaMessageId(temaId: string) {
-  return `<tema-${temaId}@esluzby>`;
+  return `<tema-${temaId}@e-jano>`;
 }
 
 export async function sendMail(options: nodemailer.SendMailOptions) {

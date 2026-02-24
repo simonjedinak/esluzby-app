@@ -111,7 +111,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   // Load saved filters from localStorage on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("esluzby_filtre");
+      const saved = localStorage.getItem("ejano_filtre");
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.ulozene) {
@@ -133,7 +133,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
     if (!filtersInitialized.current) return;
     if (ulozitFiltre) {
       localStorage.setItem(
-        "esluzby_filtre",
+        "ejano_filtre",
         JSON.stringify({
           ulozene: true,
           filterRegion,
@@ -156,7 +156,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
   const setUlozitFiltre = (v: boolean) => {
     setUlozitFiltreRaw(v);
     if (!v) {
-      localStorage.removeItem("esluzby_filtre");
+      localStorage.removeItem("ejano_filtre");
     }
   };
   // Nova tema modal
