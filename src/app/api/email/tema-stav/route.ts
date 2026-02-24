@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
 
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
             <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-              Tento email bol odoslaný automaticky systémom eSlužby. Neodpovedajte naň.
+              Tento email bol odoslaný automaticky systémom e-jano. Neodpovedajte naň.
             </p>
           </div>
         </div>

@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     await sendMail({
       from: FROM,
       to: userEmail,
-      subject: "Váš profil v eSlužby bol zmenený",
+      subject: "Váš profil v e-jano bol zmenený",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; color: #1e293b;">
           <div style="background: #7c3aed; padding: 16px 24px; border-radius: 12px 12px 0 0;">
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
 
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
             <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-              Tento email bol odoslaný automaticky systémom eSlužby. Neodpovedajte naň.
+              Tento email bol odoslaný automaticky systémom e-jano. Neodpovedajte naň.
             </p>
           </div>
         </div>

@@ -53,10 +53,10 @@ export async function POST(req: NextRequest) {
     await sendMail({
       from: FROM,
       to: email,
-      subject: "Váš účet v eSlužby bol vytvorený",
+      subject: "Váš účet v e-jano bol vytvorený",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2 style="color: #1d4ed8;">Vitajte v eSlužby, ${meno}!</h2>
+          <h2 style="color: #1d4ed8;">Vitajte v e-jano, ${meno}!</h2>
           <p>Bol vám vytvorený účet. Tu sú vaše prihlasovacie údaje:</p>
           <table style="width:100%; border-collapse: collapse; margin: 16px 0;">
             <tr>
