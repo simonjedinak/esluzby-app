@@ -71,8 +71,12 @@ const POZICIA_ORDER: PoziciaTyp[] = [
   "redaktor_tn_live",
 ];
 
-export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
+export function DomovClient({
+  currentProfile,
+  allProfiles: initialAllProfiles,
+}: DomovClientProps) {
   const [datum, setDatum] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [allProfiles, setAllProfiles] = useState<Profile[]>(initialAllProfiles);
   const [temy, setTemy] = useState<Tema[]>([]);
   const [veduciDna, setVeduciDna] = useState<VeduciDna[]>([]);
   const [denneStavy, setDenneStavy] = useState<DennyStav[]>([]);
@@ -192,24 +196,32 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
         setLoading(true);
       }
 
-      const [temyRes, veduciRes, stavyRes, pozicieRes, komentareRes, volnaRes] =
-        await Promise.all([
-          supabase
-            .from("temy")
-            .select("*")
-            .eq("datum", datum)
-            .order("created_at"),
-          supabase.from("veduci_dna").select("*").eq("datum", datum),
-          supabase.from("denny_stav").select("*").eq("datum", datum),
-          supabase.from("denny_pozicie").select("*").eq("datum", datum),
-          supabase.from("tema_komentare").select("*").order("created_at"),
-          supabase
-            .from("volna")
-            .select("*")
-            .eq("stav", "schvalene")
-            .lte("datum_od", datum)
-            .gte("datum_do", datum),
-        ]);
+      const [
+        temyRes,
+        veduciRes,
+        stavyRes,
+        pozicieRes,
+        komentareRes,
+        volnaRes,
+        profilesRes,
+      ] = await Promise.all([
+        supabase
+          .from("temy")
+          .select("*")
+          .eq("datum", datum)
+          .order("created_at"),
+        supabase.from("veduci_dna").select("*").eq("datum", datum),
+        supabase.from("denny_stav").select("*").eq("datum", datum),
+        supabase.from("denny_pozicie").select("*").eq("datum", datum),
+        supabase.from("tema_komentare").select("*").order("created_at"),
+        supabase
+          .from("volna")
+          .select("*")
+          .eq("stav", "schvalene")
+          .lte("datum_od", datum)
+          .gte("datum_do", datum),
+        supabase.from("profiles").select("*").order("priezvisko"),
+      ]);
 
       const temyData = (temyRes.data || []) as unknown as Tema[];
       const temaIds = temyData.map((t) => t.id);
@@ -223,6 +235,8 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
       setDennePozicie((pozicieRes.data || []) as unknown as DennyPozicia[]);
       setKomentare(filteredKomentare);
       setSchvaleneVolna((volnaRes.data || []) as unknown as Volno[]);
+      if (profilesRes.data)
+        setAllProfiles(profilesRes.data as unknown as Profile[]);
       setLoading(false);
       setInitialLoad(false);
     },
