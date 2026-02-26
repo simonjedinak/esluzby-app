@@ -1,6 +1,5 @@
 export type UserRole =
   | "admin"
-  | "veduci"
   | "veduci_vydania"
   | "produkcia"
   | "web_editor"
@@ -10,7 +9,6 @@ export type UserRole =
 
 export const rolaLabels: Record<UserRole, string> = {
   admin: "Admin",
-  veduci: "Vedúci vedenia",
   veduci_vydania: "Vedúci vydania",
   produkcia: "Produkcia",
   web_editor: "WEB editor",
@@ -21,7 +19,6 @@ export const rolaLabels: Record<UserRole, string> = {
 
 export const rolaColors: Record<UserRole, string> = {
   admin: "bg-purple-100 text-purple-700",
-  veduci: "bg-yellow-100 text-yellow-800",
   veduci_vydania: "bg-orange-100 text-orange-700",
   produkcia: "bg-pink-100 text-pink-700",
   web_editor: "bg-cyan-100 text-cyan-700",
@@ -32,7 +29,6 @@ export const rolaColors: Record<UserRole, string> = {
 
 export const ALL_ROLES: UserRole[] = [
   "admin",
-  "veduci",
   "veduci_vydania",
   "produkcia",
   "web_editor",
@@ -56,9 +52,9 @@ export function isAdmin(profile: Profile): boolean {
   return hasRole(profile, "admin");
 }
 
-/** Check if user can manage (admin, vedúci vedenia or vedúci vydania) */
+/** Check if user can manage (admin or vedúci vydania) */
 export function canManage(profile: Profile): boolean {
-  return hasAnyRole(profile, ["admin", "veduci", "veduci_vydania"]);
+  return hasAnyRole(profile, ["admin", "veduci_vydania"]);
 }
 
 /** Check if user can edit the leaders/positions table (vedenie dňa) */
@@ -75,7 +71,7 @@ export function canEditTable(profile: Profile): boolean {
 
 /** Check if user can approve/reject topics */
 export function canApproveTopics(profile: Profile): boolean {
-  return hasAnyRole(profile, ["admin", "veduci", "veduci_vydania", "tn_live"]);
+  return hasAnyRole(profile, ["admin", "veduci_vydania", "tn_live"]);
 }
 
 /** Check if user can change reporter daily status (pracuje/nepracuje/voľno) */
@@ -136,7 +132,7 @@ export const poziciaLabels: Record<PoziciaTyp, string> = {
   produkcia_2: "Produkcia 2",
   // produkcia_3: "Produkcia 3",
   web_editor: "WEB editor",
-  redaktor_tn_live: "Redaktor TN Live",
+  redaktor_tn_live: "TN Live",
 };
 
 /** Mapping of each position to the roles that can fill it */
