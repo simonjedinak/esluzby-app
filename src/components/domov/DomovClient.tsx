@@ -1253,8 +1253,7 @@ export function DomovClient({ currentProfile, allProfiles }: DomovClientProps) {
                                   tema.datum && tema.datum < todayIso;
                                 const canEdit =
                                   (tema.reporter_id === currentProfile.id ||
-                                    hasRole(currentProfile, "admin") ||
-                                    hasRole(currentProfile, "tn_live")) &&
+                                    canApproveTopics(currentProfile)) &&
                                   !isPastTema;
                                 const canChangeStav =
                                   canApproveTopics(currentProfile);
