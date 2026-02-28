@@ -376,12 +376,12 @@ export function DomovClient({
     return true;
   });
 
-  // Apply sorting — current user always first, then čakajúce na vrch, then alphabetical
+  // Apply sorting — current user always first, then čakajúce hore, then alphabetical
   const sortedFilteredReporters = [...filteredReporters].sort((a, b) => {
     // Current user always first
     if (a.id === currentProfile.id) return -1;
     if (b.id === currentProfile.id) return 1;
-    // Čakajúce na vrch: reporters with pending topics first
+    // Čakajúce hore: reporters with pending topics first
     if (cakajuceNaVrch) {
       const aHasCaka = getReporterTemy(a.id).some((t) => t.stav === "caka");
       const bHasCaka = getReporterTemy(b.id).some((t) => t.stav === "caka");
@@ -967,7 +967,7 @@ export function DomovClient({
 
             <div className="hidden sm:block w-px h-6 bg-gray-200" />
 
-            {/* Čakajúce na vrch toggle */}
+            {/* Čakajúce hore toggle */}
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setCakajuceNaVrch(!cakajuceNaVrch)}
@@ -981,7 +981,7 @@ export function DomovClient({
                   }`}
                 />
               </button>
-              <span className="text-xs text-gray-600">Čakajúce na vrch</span>
+              <span className="text-xs text-gray-600">Čakajúce hore</span>
             </div>
 
             <div className="hidden sm:block w-px h-6 bg-gray-200" />
