@@ -22,7 +22,7 @@ export function NoveVolnoModal({
 }: NoveVolnoModalProps) {
   const [datumOd, setDatumOd] = useState(format(new Date(), "yyyy-MM-dd"));
   const [datumDo, setDatumDo] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [typ, setTyp] = useState<TypVolna>("dovolenka");
+  const [typ, setTyp] = useState<TypVolna>("platene_volno");
   const [dovod, setDovod] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -35,7 +35,7 @@ export function NoveVolnoModal({
     if (isOpen) {
       setDatumOd(format(new Date(), "yyyy-MM-dd"));
       setDatumDo(format(new Date(), "yyyy-MM-dd"));
-      setTyp("dovolenka");
+      setTyp("platene_volno");
       setDovod("");
       setSuccess(false);
       setError("");
@@ -121,7 +121,7 @@ export function NoveVolnoModal({
     setSuccess(false);
     setDatumOd(format(new Date(), "yyyy-MM-dd"));
     setDatumDo(format(new Date(), "yyyy-MM-dd"));
-    setTyp("dovolenka");
+    setTyp("platene_volno");
     setDovod("");
   };
 

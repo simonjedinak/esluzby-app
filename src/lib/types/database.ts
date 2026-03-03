@@ -116,11 +116,7 @@ export type PoziciaTyp =
 export type TypVolna =
   | "platene_volno"
   | "neplatene_volno"
-  | "volno_za_vikend"
-  | "dovolenka"
-  | "pn"
-  | "ocr"
-  | "studijne_volno"
+  | "nahradne_volno"
   | "sluzobna_cesta";
 
 export type VolnoStav = "caka" | "schvalene" | "neschvalene";
@@ -163,11 +159,7 @@ export function getProfilesForPozicia(
 export const typVolnaLabels: Record<TypVolna, string> = {
   platene_volno: "Platené voľno",
   neplatene_volno: "Neplatené voľno",
-  volno_za_vikend: "Voľno za víkend",
-  dovolenka: "Dovolenka",
-  pn: "PN",
-  ocr: "OčR",
-  studijne_volno: "Študijné voľno",
+  nahradne_volno: "Náhradné voľno",
   sluzobna_cesta: "Služobná cesta",
 };
 
