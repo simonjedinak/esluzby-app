@@ -740,7 +740,7 @@ export function DomovClient({
                 <span className="text-4xl font-extrabold text-blue-600 tracking-tight leading-none ml-1">
                   {format(new Date(datum + "T12:00:00"), "d")}.
                 </span>
-                <span className="text-sm font-medium text-gray-500 mt-1 pl-0.75 capitalize flex items-center gap-1">
+                <span className="text-sm font-medium text-gray-500 mt-1 pl-0.75 flex items-center gap-1">
                   {format(new Date(datum + "T12:00:00"), "LLLL yyyy", {
                     locale: sk,
                   })}
