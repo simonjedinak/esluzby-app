@@ -593,12 +593,12 @@ export function ProfilClient({
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                 let bgColor = "bg-gray-50 hover:bg-gray-100"; // default
-                if (stav === "pracujuci") {
+                if (stav === "volno" || hasVolno) {
+                  bgColor = "bg-gray-200 hover:bg-gray-300 text-gray-600";
+                } else if (stav === "pracujuci") {
                   bgColor = "bg-green-100 hover:bg-green-200 text-green-800";
                 } else if (stav === "nepracujuci") {
                   bgColor = "bg-red-100 hover:bg-red-200 text-red-800";
-                } else if (stav === "volno" || hasVolno) {
-                  bgColor = "bg-gray-200 hover:bg-gray-300 text-gray-600";
                 } else if (isWeekend) {
                   bgColor = "bg-gray-100 text-gray-400";
                 }

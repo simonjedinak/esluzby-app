@@ -456,12 +456,6 @@ export function DomovClient({
     const isReporterEdit =
       editModal.reporter_id === currentProfile.id &&
       isOnlyReporter(currentProfile);
-    // Reporters cannot edit past topics
-    if (isReporterEdit && editModal.datum && editModal.datum < todayIso) {
-      alert("Tému z minulosti nemožno upravovať.");
-      setEditModal(null);
-      return;
-    }
     setStavLoading(true);
 
     const wasApproved =
@@ -486,11 +480,6 @@ export function DomovClient({
   };
 
   const handleDeleteTema = async (temaId: string) => {
-    const tema = temy.find((t) => t.id === temaId);
-    if (tema && tema.datum < todayIso) {
-      alert("Tému z minulosti nemožno zmazať.");
-      return;
-    }
     if (!confirm("Naozaj chcete zmazať túto tému?")) return;
     await supabase.from("temy").delete().eq("id", temaId);
     fetchData(true);
@@ -1113,32 +1102,31 @@ export function DomovClient({
 
                           {/* Col 3+4: Actions (plus + semafor) */}
                           <div className="order-2 md:order-3 flex items-center gap-1.5 shrink-0 py-3 pr-3 ml-auto md:ml-0">
-                            {datum >= todayIso &&
-                              (isCurrentUser
-                                ? hasRole(currentProfile, "reporter")
-                                : canAddForOthers) && (
-                                <button
-                                  onClick={() => {
-                                    if (isCurrentUser) {
-                                      setNovaTemaForReporter(null);
-                                    } else {
-                                      setNovaTemaForReporter({
-                                        id: reporter.id,
-                                        name: `${reporter.priezvisko} ${reporter.meno}`,
-                                      });
-                                    }
-                                    setShowNovaTema(true);
-                                  }}
-                                  className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors shrink-0"
-                                  title={
-                                    isCurrentUser
-                                      ? "Nová téma"
-                                      : `Pridať tému za ${reporter.priezvisko} ${reporter.meno}`
+                            {(isCurrentUser
+                              ? hasRole(currentProfile, "reporter")
+                              : canAddForOthers) && (
+                              <button
+                                onClick={() => {
+                                  if (isCurrentUser) {
+                                    setNovaTemaForReporter(null);
+                                  } else {
+                                    setNovaTemaForReporter({
+                                      id: reporter.id,
+                                      name: `${reporter.priezvisko} ${reporter.meno}`,
+                                    });
                                   }
-                                >
-                                  <PlusCircle className="w-4 h-4 text-white" />
-                                </button>
-                              )}
+                                  setShowNovaTema(true);
+                                }}
+                                className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors shrink-0"
+                                title={
+                                  isCurrentUser
+                                    ? "Nová téma"
+                                    : `Pridať tému za ${reporter.priezvisko} ${reporter.meno}`
+                                }
+                              >
+                                <PlusCircle className="w-4 h-4 text-white" />
+                              </button>
+                            )}
                             {canSetReporterStatus && (
                               <div className="flex items-center gap-1">
                                 {(
@@ -1185,12 +1173,9 @@ export function DomovClient({
                                 {reporterTemy.map((tema) => {
                                   const stavI = stavConfig[tema.stav];
                                   const StavIcon = stavI.icon;
-                                  const isPastTema =
-                                    tema.datum && tema.datum < todayIso;
                                   const canEdit =
-                                    (tema.reporter_id === currentProfile.id ||
-                                      canApproveTopics(currentProfile)) &&
-                                    !isPastTema;
+                                    tema.reporter_id === currentProfile.id ||
+                                    canApproveTopics(currentProfile);
                                   const canChangeStav =
                                     canApproveTopics(currentProfile);
                                   const temaKomentare = getKomentareForTema(
@@ -1624,10 +1609,6 @@ export function DomovClient({
               <DatePicker
                 value={editDatum}
                 onChange={(v) => {
-                  const isReporter =
-                    editModal?.reporter_id === currentProfile.id &&
-                    isOnlyReporter(currentProfile);
-                  if (isReporter && v < todayIso) return;
                   setEditDatum(v);
                 }}
                 label="Dátum"

@@ -76,13 +76,6 @@ export function NovaTemaModal({
       return;
     }
 
-    const todayIso = format(new Date(), "yyyy-MM-dd");
-    if (datum < todayIso) {
-      setError("Nemôžete pridať tému do minulosti.");
-      setLoading(false);
-      return;
-    }
-
     const { error: insertError } = await supabase.from("temy").insert({
       reporter_id: forReporterId || user.id,
       datum,
