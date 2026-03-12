@@ -1,1 +1,1 @@
-ejano app
+ejano-app
