@@ -47,6 +47,7 @@ export function VolnaClient({
   const [showNoveVolno, setShowNoveVolno] = useState(false);
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
+  const isReadOnlyRole = hasRole(currentProfile, "sefproducent");
 
   const fetchVolna = useCallback(async () => {
     const { data } = await supabase
@@ -107,12 +108,14 @@ export function VolnaClient({
   });
 
   const handleDelete = async (id: string) => {
+    if (isReadOnlyRole) return;
     if (!confirm("Naozaj chcete zmazať toto voľno?")) return;
     await supabase.from("volna").delete().eq("id", id);
     setVolnaList((prev) => prev.filter((v) => v.id !== id));
   };
 
   const handleSchvalenie = async () => {
+    if (isReadOnlyRole) return;
     if (!schvalovaniModal) return;
     setActionLoading(true);
 
@@ -192,13 +195,15 @@ export function VolnaClient({
             Prehľad naplánovaných voľien
           </p>
         </div>
-        <button
-          onClick={() => setShowNoveVolno(true)}
-          className="px-4 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Požiadať o voľno
-        </button>
+        {!isReadOnlyRole && (
+          <button
+            onClick={() => setShowNoveVolno(true)}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Požiadať o voľno
+          </button>
+        )}
       </div>
 
       {/* Filter */}
@@ -245,7 +250,7 @@ export function VolnaClient({
           {filteredVolna.map((v) => {
             const reporter = getProfile(v.reporter_id);
             const isMine = v.reporter_id === currentProfile.id;
-            const canDelete = isMine || isApprover;
+            const canDelete = !isReadOnlyRole && (isMine || isApprover);
             const stav = stavConfig[v.stav || "caka"];
             const StavIcon = stav.icon;
 

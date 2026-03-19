@@ -34,6 +34,7 @@ export function MobileNav({ profile }: MobileNavProps) {
   const supabase = createClient();
   const [showMenu, setShowMenu] = useState(false);
   const [showNovaTema, setShowNovaTema] = useState(false);
+  const isReadOnlyRole = hasRole(profile, "sefproducent");
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -57,7 +58,7 @@ export function MobileNav({ profile }: MobileNavProps) {
           {/* Domov */}
           <Link
             href="/domov"
-            className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-[60px] transition-colors ${
+            className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-15 transition-colors ${
               isActive("/domov") ? "text-blue-600" : "text-gray-500"
             }`}
           >
@@ -68,13 +69,15 @@ export function MobileNav({ profile }: MobileNavProps) {
           </Link>
 
           {/* Téma - modal trigger */}
-          <button
-            onClick={() => setShowNovaTema(true)}
-            className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-[60px] text-blue-600"
-          >
-            <PlusCircle className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Téma</span>
-          </button>
+          {!isReadOnlyRole && (
+            <button
+              onClick={() => setShowNovaTema(true)}
+              className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-15 text-blue-600"
+            >
+              <PlusCircle className="w-5 h-5" />
+              <span className="text-[10px] font-medium">Téma</span>
+            </button>
+          )}
 
           {/* Voľno & Profil */}
           {navItems
@@ -85,7 +88,7 @@ export function MobileNav({ profile }: MobileNavProps) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-[60px] transition-colors ${
+                  className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-15 transition-colors ${
                     isActive(item.href) ? "text-blue-600" : "text-gray-500"
                   }`}
                 >
@@ -98,7 +101,7 @@ export function MobileNav({ profile }: MobileNavProps) {
             })}
           <button
             onClick={() => setShowMenu(true)}
-            className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-[60px] text-gray-500"
+            className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg min-w-15 text-gray-500"
           >
             <Menu className="w-5 h-5" />
             <span className="text-[10px] font-medium">Menu</span>
@@ -108,7 +111,7 @@ export function MobileNav({ profile }: MobileNavProps) {
 
       {/* Full-screen Menu Overlay */}
       {showMenu && (
-        <div className="fixed inset-0 bg-white z-[60] md:hidden">
+        <div className="fixed inset-0 bg-white z-60 md:hidden">
           <div className="flex flex-col h-full">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -167,16 +170,18 @@ export function MobileNav({ profile }: MobileNavProps) {
             {/* Menu Links */}
             <div className="flex-1 p-4 space-y-1">
               {/* Nová téma button */}
-              <button
-                onClick={() => {
-                  setShowMenu(false);
-                  setShowNovaTema(true);
-                }}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium w-full bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-              >
-                <PlusCircle className="w-5 h-5" />
-                Nová téma
-              </button>
+              {!isReadOnlyRole && (
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    setShowNovaTema(true);
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium w-full bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                >
+                  <PlusCircle className="w-5 h-5" />
+                  Nová téma
+                </button>
+              )}
 
               {[
                 { href: "/domov", label: "Domov", icon: Home },

@@ -51,12 +51,6 @@ export default async function ProfilPage({
     .eq("reporter_id", targetId)
     .order("datum_od", { ascending: false })) as { data: Volno[] | null };
 
-  // All profiles for admin use
-  const { data: allProfiles } = (await supabase
-    .from("profiles")
-    .select("*")
-    .order("priezvisko")) as { data: Profile[] | null };
-
   return (
     <ProfilClient
       profile={targetProfile!}
@@ -65,7 +59,6 @@ export default async function ProfilPage({
       denneStavy={denneStavy || []}
       temy={temy || []}
       volna={volna || []}
-      allProfiles={allProfiles || []}
     />
   );
 }

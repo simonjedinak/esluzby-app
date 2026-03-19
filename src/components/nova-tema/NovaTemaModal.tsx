@@ -79,6 +79,18 @@ export function NovaTemaModal({
       return;
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("roly")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.roly?.includes("sefproducent")) {
+      setError("Táto rola má iba prístup na čítanie");
+      setLoading(false);
+      return;
+    }
+
     const { error: insertError } = await supabase.from("temy").insert({
       reporter_id: forReporterId || user.id,
       datum,

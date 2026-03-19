@@ -6,6 +6,7 @@ export type UserRole =
   | "web_editor"
   | "tn_live"
   | "office_manazer"
+  | "sefproducent"
   | "reporter";
 
 export const rolaLabels: Record<UserRole, string> = {
@@ -16,6 +17,7 @@ export const rolaLabels: Record<UserRole, string> = {
   web_editor: "WEB editor",
   tn_live: "TN Live",
   office_manazer: "Office manažér",
+  sefproducent: "Šéfproducent",
   reporter: "Reportér",
 };
 
@@ -27,6 +29,7 @@ export const rolaColors: Record<UserRole, string> = {
   web_editor: "bg-cyan-100 text-cyan-700",
   tn_live: "bg-red-100 text-red-700",
   office_manazer: "bg-emerald-100 text-emerald-700",
+  sefproducent: "bg-slate-100 text-slate-700",
   reporter: "bg-blue-100 text-blue-700",
 };
 
@@ -38,6 +41,7 @@ export const ALL_ROLES: UserRole[] = [
   "web_editor",
   "tn_live",
   "office_manazer",
+  "sefproducent",
   "reporter",
 ];
 
@@ -53,16 +57,19 @@ export function hasAnyRole(profile: Profile, roles: UserRole[]): boolean {
 
 /** Check if user is admin */
 export function isAdmin(profile: Profile): boolean {
+  if (hasRole(profile, "sefproducent")) return false;
   return hasRole(profile, "admin");
 }
 
 /** Check if user can manage (admin or vedúci vydania) */
 export function canManage(profile: Profile): boolean {
+  if (hasRole(profile, "sefproducent")) return false;
   return hasAnyRole(profile, ["admin", "veduci_vydania"]);
 }
 
 /** Check if user can edit the leaders/positions table (vedenie dňa) */
 export function canEditTable(profile: Profile): boolean {
+  if (hasRole(profile, "sefproducent")) return false;
   return hasAnyRole(profile, [
     "admin",
     "veduci_vydania",
@@ -75,21 +82,25 @@ export function canEditTable(profile: Profile): boolean {
 
 /** Check if user can approve/reject topics */
 export function canApproveTopics(profile: Profile): boolean {
+  if (hasRole(profile, "sefproducent")) return false;
   return hasAnyRole(profile, ["admin", "veduci_vydania", "tn_live"]);
 }
 
 /** Check if user can change reporter daily status (pracuje/nepracuje/voľno) */
 export function canChangeReporterStatus(profile: Profile): boolean {
+  if (hasRole(profile, "sefproducent")) return false;
   return hasAnyRole(profile, ["admin", "office_manazer"]);
 }
 
 /** Check if user can set leave (admin, vedúci vydania, or office manažér) */
 export function canSetLeave(profile: Profile): boolean {
+  if (hasRole(profile, "sefproducent")) return false;
   return hasAnyRole(profile, ["admin", "veduci_vydania", "office_manazer"]);
 }
 
 /** Check if user can approve/reject leave (admin or office manažér) */
 export function canApproveLeave(profile: Profile): boolean {
+  if (hasRole(profile, "sefproducent")) return false;
   return hasAnyRole(profile, ["admin", "office_manazer"]);
 }
 

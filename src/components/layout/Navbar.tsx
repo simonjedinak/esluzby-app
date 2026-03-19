@@ -24,6 +24,7 @@ export function Navbar({ profile }: NavbarProps) {
   const supabase = createClient();
   const [showMenu, setShowMenu] = useState(false);
   const [showNovaTema, setShowNovaTema] = useState(false);
+  const isReadOnlyRole = hasRole(profile, "sefproducent");
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -70,7 +71,7 @@ export function Navbar({ profile }: NavbarProps) {
                 {item.label}
               </Link>
             ))}
-            {hasRole(profile, "reporter") && (
+            {!isReadOnlyRole && hasRole(profile, "reporter") && (
               <button
                 onClick={() => setShowNovaTema(true)}
                 className="ml-1 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"

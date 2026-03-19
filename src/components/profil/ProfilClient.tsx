@@ -58,7 +58,6 @@ interface ProfilClientProps {
   denneStavy: DennyStav[];
   temy: Tema[];
   volna: Volno[];
-  allProfiles: Profile[];
 }
 
 const DAY_NAMES = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"];
@@ -70,7 +69,6 @@ export function ProfilClient({
   denneStavy,
   temy: initialTemy,
   volna,
-  allProfiles,
 }: ProfilClientProps) {
   // Profile edit state
   const [meno, setMeno] = useState(profile.meno);
@@ -110,6 +108,7 @@ export function ProfilClient({
 
   const isAdminUser = checkIsAdmin(currentProfile);
   const canManageService = canChangeReporterStatus(currentProfile);
+  const isReadOnlyRole = currentProfile.roly?.includes("sefproducent") ?? false;
 
   // Calendar helpers
   const calendarDays = useMemo(() => {
@@ -361,6 +360,7 @@ export function ProfilClient({
   // Profile update handlers
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnlyRole) return;
     setLoading(true);
     setError("");
     setSuccess("");
@@ -500,9 +500,17 @@ export function ProfilClient({
             { key: "calendar", label: "Kalendár", icon: CalendarDays },
             { key: "temy", label: "Témy", icon: FileText },
             { key: "volna", label: "Voľná", icon: Calendar },
-            ...(isOwnProfile || isAdminUser
-              ? [{ key: "settings" as const, label: "Nastavenia", icon: User }]
-              : []),
+            ...(isReadOnlyRole
+              ? []
+              : isOwnProfile || isAdminUser
+                ? [
+                    {
+                      key: "settings" as const,
+                      label: "Nastavenia",
+                      icon: User,
+                    },
+                  ]
+                : []),
           ] as const
         ).map(({ key, label, icon: Icon }) => (
           <button
@@ -978,172 +986,174 @@ export function ProfilClient({
       )}
 
       {/* Settings Tab (own profile or admin viewing) */}
-      {activeTab === "settings" && (isOwnProfile || isAdminUser) && (
-        <div className="space-y-6">
-          {/* Profile Edit */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Osobné údaje
-            </h3>
-            <form onSubmit={handleUpdateProfile} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+      {activeTab === "settings" &&
+        !isReadOnlyRole &&
+        (isOwnProfile || isAdminUser) && (
+          <div className="space-y-6">
+            {/* Profile Edit */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Osobné údaje
+              </h3>
+              <form onSubmit={handleUpdateProfile} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-4 h-4 text-gray-400" />
+                        Meno
+                      </div>
+                    </label>
+                    <input
+                      type="text"
+                      value={meno}
+                      onChange={(e) => setMeno(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Priezvisko
+                    </label>
+                    <input
+                      type="text"
+                      value={priezvisko}
+                      onChange={(e) => setPriezvisko(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900"
+                      required
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     <div className="flex items-center gap-1.5">
-                      <User className="w-4 h-4 text-gray-400" />
-                      Meno
+                      <Mail className="w-4 h-4 text-gray-400" />
+                      Email
+                    </div>
+                  </label>
+                  <input
+                    type="email"
+                    value={profile.email}
+                    disabled
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <Phone className="w-4 h-4 text-gray-400" />
+                      Telefón
+                    </div>
+                  </label>
+                  <input
+                    type="tel"
+                    value={telefon}
+                    onChange={(e) => setTelefon(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
+                    placeholder="+421 ..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-gray-400" />
+                      Región pôsobenia
                     </div>
                   </label>
                   <input
                     type="text"
-                    value={meno}
-                    onChange={(e) => setMeno(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900"
-                    required
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
+                    placeholder="BA, KE, BB..."
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Priezvisko
-                  </label>
-                  <input
-                    type="text"
-                    value={priezvisko}
-                    onChange={(e) => setPriezvisko(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900"
-                    required
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Mail className="w-4 h-4 text-gray-400" />
-                    Email
-                  </div>
-                </label>
-                <input
-                  type="email"
-                  value={profile.email}
-                  disabled
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Phone className="w-4 h-4 text-gray-400" />
-                    Telefón
-                  </div>
-                </label>
-                <input
-                  type="tel"
-                  value={telefon}
-                  onChange={(e) => setTelefon(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                  placeholder="+421 ..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4 text-gray-400" />
-                    Región pôsobenia
-                  </div>
-                </label>
-                <input
-                  type="text"
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                  placeholder="BA, KE, BB..."
-                />
-              </div>
-
-              <div className="flex items-center gap-3 py-1">
-                <button
-                  type="button"
-                  onClick={() => setJeRegionalny(!jeRegionalny)}
-                  className={`relative w-9 h-5 rounded-full transition-colors ${
-                    jeRegionalny ? "bg-amber-500" : "bg-gray-300"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
-                      jeRegionalny ? "translate-x-4" : ""
+                <div className="flex items-center gap-3 py-1">
+                  <button
+                    type="button"
+                    onClick={() => setJeRegionalny(!jeRegionalny)}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${
+                      jeRegionalny ? "bg-amber-500" : "bg-gray-300"
                     }`}
-                  />
-                </button>
-                <span className="text-sm font-medium text-gray-700">
-                  Regionálny redaktor
-                </span>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                {loading ? "Ukladám..." : "Uložiť zmeny"}
-              </button>
-            </form>
-          </div>
-
-          {/* Change Password (only own profile) */}
-          {isOwnProfile && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Lock className="w-5 h-5 text-gray-400" />
-                Zmena hesla
-              </h3>
-
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Nové heslo
-                  </label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                    placeholder="Minimálne 6 znakov"
-                    required
-                    minLength={6}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Potvrdiť heslo
-                  </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                    placeholder="Zopakujte heslo"
-                    required
-                    minLength={6}
-                  />
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                        jeRegionalny ? "translate-x-4" : ""
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-gray-700">
+                    Regionálny redaktor
+                  </span>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={passwordLoading}
-                  className="w-full bg-gray-900 text-white py-3 rounded-xl font-medium hover:bg-gray-800 focus:ring-4 focus:ring-gray-200 transition-all disabled:opacity-50"
+                  disabled={loading}
+                  className="w-full bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {passwordLoading ? "Mením heslo..." : "Zmeniť heslo"}
+                  <Save className="w-4 h-4" />
+                  {loading ? "Ukladám..." : "Uložiť zmeny"}
                 </button>
               </form>
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Change Password (only own profile) */}
+            {isOwnProfile && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-gray-400" />
+                  Zmena hesla
+                </h3>
+
+                <form onSubmit={handleChangePassword} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Nové heslo
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
+                      placeholder="Minimálne 6 znakov"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Potvrdiť heslo
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
+                      placeholder="Zopakujte heslo"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={passwordLoading}
+                    className="w-full bg-gray-900 text-white py-3 rounded-xl font-medium hover:bg-gray-800 focus:ring-4 focus:ring-gray-200 transition-all disabled:opacity-50"
+                  >
+                    {passwordLoading ? "Mením heslo..." : "Zmeniť heslo"}
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        )}
     </div>
   );
 }

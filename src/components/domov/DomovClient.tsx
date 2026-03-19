@@ -181,6 +181,7 @@ export function DomovClient({
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
   const scrollRestoreRef = useRef<number | null>(null);
+  const isReadOnlyRole = hasRole(currentProfile, "sefproducent");
 
   const isVeduci = canEditTable(currentProfile);
   const canSetReporterStatus = canChangeReporterStatus(currentProfile);
@@ -406,6 +407,7 @@ export function DomovClient({
   }[] = [{ region: null, reporters: sortedFilteredReporters }];
 
   const handleSchvalenie = async () => {
+    if (isReadOnlyRole) return;
     if (!schvalovaniModal) return;
     setStavLoading(true);
 
@@ -454,6 +456,7 @@ export function DomovClient({
   };
 
   const handleEditTema = async () => {
+    if (isReadOnlyRole) return;
     if (!editModal) return;
     const isReporterEdit =
       editModal.reporter_id === currentProfile.id &&
@@ -482,6 +485,7 @@ export function DomovClient({
   };
 
   const handleDeleteTema = async (temaId: string) => {
+    if (isReadOnlyRole) return;
     if (!confirm("Naozaj chcete zmazať túto tému?")) return;
     await supabase.from("temy").delete().eq("id", temaId);
     fetchData(true);
@@ -501,6 +505,7 @@ export function DomovClient({
     text: string,
     jeHodnotenie = false,
   ) => {
+    if (isReadOnlyRole) return;
     if (!text.trim()) return;
     await supabase.from("tema_komentare").insert({
       tema_id: temaId,
@@ -536,6 +541,7 @@ export function DomovClient({
   };
 
   const handleStavChange = async () => {
+    if (isReadOnlyRole) return;
     if (!stavChangeModal) return;
     setStavLoading(true);
 
@@ -587,6 +593,7 @@ export function DomovClient({
   };
 
   const handleReporterStav = async (reporterId: string, stav: ReporterStav) => {
+    if (isReadOnlyRole) return;
     const existing = denneStavy.find((s) => s.reporter_id === reporterId);
 
     if (existing) {
@@ -610,6 +617,7 @@ export function DomovClient({
     pozicia: PoziciaTyp,
     profileId: string | "",
   ) => {
+    if (isReadOnlyRole) return;
     const existing = dennePozicie.find((p) => p.pozicia === pozicia);
     if (existing) {
       await supabase.from("denny_pozicie").delete().eq("id", existing.id);
@@ -1110,31 +1118,32 @@ export function DomovClient({
 
                           {/* Col 3+4: Actions (plus + semafor) */}
                           <div className="order-2 md:order-3 flex items-center gap-1.5 shrink-0 py-3 pr-3 ml-auto md:ml-0">
-                            {(isCurrentUser
-                              ? hasRole(currentProfile, "reporter")
-                              : canAddForOthers) && (
-                              <button
-                                onClick={() => {
-                                  if (isCurrentUser) {
-                                    setNovaTemaForReporter(null);
-                                  } else {
-                                    setNovaTemaForReporter({
-                                      id: reporter.id,
-                                      name: `${reporter.priezvisko} ${reporter.meno}`,
-                                    });
+                            {!isReadOnlyRole &&
+                              (isCurrentUser
+                                ? hasRole(currentProfile, "reporter")
+                                : canAddForOthers) && (
+                                <button
+                                  onClick={() => {
+                                    if (isCurrentUser) {
+                                      setNovaTemaForReporter(null);
+                                    } else {
+                                      setNovaTemaForReporter({
+                                        id: reporter.id,
+                                        name: `${reporter.priezvisko} ${reporter.meno}`,
+                                      });
+                                    }
+                                    setShowNovaTema(true);
+                                  }}
+                                  className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors shrink-0"
+                                  title={
+                                    isCurrentUser
+                                      ? "Nová téma"
+                                      : `Pridať tému za ${reporter.priezvisko} ${reporter.meno}`
                                   }
-                                  setShowNovaTema(true);
-                                }}
-                                className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors shrink-0"
-                                title={
-                                  isCurrentUser
-                                    ? "Nová téma"
-                                    : `Pridať tému za ${reporter.priezvisko} ${reporter.meno}`
-                                }
-                              >
-                                <PlusCircle className="w-4 h-4 text-white" />
-                              </button>
-                            )}
+                                >
+                                  <PlusCircle className="w-4 h-4 text-white" />
+                                </button>
+                              )}
                             {canSetReporterStatus && (
                               <div className="flex items-center gap-1">
                                 {(
@@ -1182,8 +1191,9 @@ export function DomovClient({
                                   const stavI = stavConfig[tema.stav];
                                   const StavIcon = stavI.icon;
                                   const canEdit =
-                                    tema.reporter_id === currentProfile.id ||
-                                    canApproveTopics(currentProfile);
+                                    !isReadOnlyRole &&
+                                    (tema.reporter_id === currentProfile.id ||
+                                      canApproveTopics(currentProfile));
                                   const canChangeStav =
                                     canApproveTopics(currentProfile);
                                   const temaKomentare = getKomentareForTema(
